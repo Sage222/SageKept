@@ -1,0 +1,6 @@
+{
+  "name": "SageKept",
+  "description": "Self-hosted note-taking and organization workspace with nested binders, customizable navigation, and profile avatars.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

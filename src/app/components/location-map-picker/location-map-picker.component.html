@@ -1,0 +1,28 @@
+<p class="map-help">{{ 'location_map_picker.move_the_map_under_the_pin_or_tap_a_spot_pinch_to_zoom' | translate }}</p>
+<div class="map-shell">
+  <div #mapHost class="map-canvas" role="region" [attr.aria-label]="'location_map_picker.choose_a_reminder_location_on_the_map' | translate"></div>
+  <span class="map-pin material-symbols-outlined" aria-hidden="true">location_on</span>
+</div>
+@if (loading) { <p role="status">{{ 'location_map_picker.opening_map' | translate }}</p> }
+@if (error) { <p role="alert">{{(error) | uiText}}</p> }
+@if (tileError) {
+  <p role="status">{{ 'location_map_picker.map_imagery_could_not_load_check_your_connection' | translate }} <button type="button" class="map-link" (click)="reloadTiles()">{{ 'common.try_again' | translate }}</button></p>
+}
+<button type="button" class="map-locate" [disabled]="locating || loading || !!error" (click)="locate.emit()">
+  <span class="material-symbols-outlined" aria-hidden="true">my_location</span>{{(locating) ? ('location_map_picker.finding_your_location' | translate) : ('location_map_picker.use_my_current_location' | translate)}}
+</button>
+@if (locationError) { <p role="status">{{(locationError) | uiText}}</p> }
+@if (selected) { <p class="map-coordinates">{{selected.latitude.toFixed(5)}}, {{selected.longitude.toFixed(5)}}</p> }
+<fieldset>
+  <legend>{{ 'location_map_picker.reminder_radius' | translate }}</legend>
+  <div class="map-radii">
+    @for (value of radii; track value) {
+      <button type="button" [class.active]="radius === value" [attr.aria-pressed]="radius === value" (click)="setRadius(value)">{{(value >= 1000) ? ('input.1_km' | translate) : (value + ' m')}}</button>
+    }
+  </div>
+</fieldset>
+<p class="map-help">{{ 'location_map_picker.the_circle_shows_the_reminder_area_alerts_depend_on_your_device_s' | translate }}</p>
+<div class="map-actions">
+  <button type="button" (click)="cancelled.emit()">{{ 'common.cancel' | translate }}</button>
+  <button type="button" class="map-confirm" [disabled]="!selected || loading || !!error || locating" (click)="confirm()">{{ 'location_map_picker.use_this_location' | translate }}</button>
+</div>

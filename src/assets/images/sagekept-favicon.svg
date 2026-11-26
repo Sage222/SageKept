@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="skBg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#225743"/>
+      <stop offset="55%" stop-color="#2f7d5f"/>
+      <stop offset="100%" stop-color="#48a883"/>
+    </linearGradient>
+    <linearGradient id="skFold" x1="36" y1="36" x2="50" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#b7ebd4"/>
+      <stop offset="100%" stop-color="#7cd4b0"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="16" fill="url(#skBg)"/>
+  <rect x="4" y="4" width="56" height="56" rx="15" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1.5"/>
+  <!-- Stylized folded note card -->
+  <path d="M18 16.5C18 14.567 19.567 13 21.5 13H43.5C45.433 13 47 14.567 47 16.5V37.5L36.5 48H21.5C19.567 48 18 46.433 18 44.5V16.5Z" fill="#fbfcf9"/>
+  <path d="M36.5 48V40.5C36.5 38.843 37.843 37.5 39.5 37.5H47L36.5 48Z" fill="url(#skFold)"/>
+  <!-- Sage botanical leaf accent inside note -->
+  <path d="M25.5 35.5C25.5 27.5 31 22 39 21.5C38.5 29.5 33.5 35 25.5 35.5Z" fill="#2f7d5f"/>
+  <path d="M24.5 36.5L35 26" stroke="#fbfcf9" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="44" cy="19" r="2.2" fill="#f6c453"/>
+</svg>

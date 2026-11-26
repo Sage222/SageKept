@@ -1,0 +1,53 @@
+<main class="auth-page">
+  @if (!isLoading && registrationEnabled) {
+    <section class="auth-panel">
+      <div class="brand-row">
+        <span class="brand-wordmark"><span class="brand-sage">Sage</span><span class="brand-kept">Kept</span></span>
+      </div>
+      <h1>{{ 'register.create_an_account' | translate }}</h1>
+
+      @if (successMessage) {
+        <div class="success">{{(successMessage) | uiText}}</div>
+        <p class="helper" style="margin-top: 16px;">
+          <a routerLink="/login" style="color: #fbbc04;">{{ 'register.back_to_sign_in' | translate }}</a>
+        </p>
+      } @else {
+        <form (ngSubmit)="submit()" #registerForm="ngForm" class="auth-form">
+          <label>
+            <span>{{ 'common.username' | translate }}</span>
+            <input name="username" [ngModel]="username" (ngModelChange)="onUsernameChange($event)" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="3" required>
+            <small class="hint">{{ 'auth.username_minimum_length' | translate }}</small>
+          </label>
+          <label>
+            <span>{{ 'common.display_name' | translate }}</span>
+            <input name="displayName" [(ngModel)]="displayName" (input)="onDisplayNameInput()" autocomplete="name" [attr.placeholder]="'auth.display_name_hint' | translate">
+          </label>
+          <label>
+            <span>{{ 'common.email' | translate }}</span>
+            <input name="email" [(ngModel)]="email" autocomplete="email" type="email" required>
+          </label>
+          <label>
+            <span>{{ 'common.password' | translate }}</span>
+            <input name="password" [(ngModel)]="password" autocomplete="new-password" type="password" minlength="8" required>
+            <small class="hint">{{ 'auth.password_minimum_length' | translate }}</small>
+          </label>
+          <label>
+            <span>{{ 'auth.confirm_password' | translate }}</span>
+            <input name="confirmPassword" [(ngModel)]="confirmPassword" autocomplete="new-password" type="password" minlength="8" required>
+            <small class="hint">{{ 'auth.must_match_password' | translate }}</small>
+          </label>
+
+          @if (error) {
+            <div class="error">{{(error) | uiText}}</div>
+          }
+          <button type="submit" [disabled]="registerForm.invalid || isRegistering">
+            {{(isRegistering) ? ('register.creating_account' | translate) : ('register.create_account' | translate)}}
+          </button>
+        </form>
+        <div class="footer-tagline">
+          {{ 'register.already_have_an_account' | translate }} <a routerLink="/login" style="color: #fbbc04;">{{ 'common.sign_in' | translate }}</a>
+        </div>
+      }
+    </section>
+  }
+</main>

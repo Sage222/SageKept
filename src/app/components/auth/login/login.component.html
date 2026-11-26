@@ -1,0 +1,70 @@
+<main class="auth-page">
+  <section class="auth-panel compact">
+    <div class="brand-row">
+      <span class="brand-wordmark"><span class="brand-sage">Sage</span><span class="brand-kept">Kept</span></span>
+    </div>
+    <h1>{{ 'common.sign_in' | translate }}</h1>
+
+    @if (oauthRequest) {
+      <p class="helper">{{ 'login.sign_in_to_approve_an_app_connection_to_your_kept_account' | translate }}</p>
+    }
+
+    @if (oidcEnabled && !loadingSignInOptions && !signInOptionsUnavailable) {
+      <button type="button" class="sso-button" (click)="signInWithOidc()" [disabled]="isSigningIn">
+        {{ 'login.continue_with_value0' | translate: { value0: (oidcName) } }}
+      </button>
+      @if (passwordLoginEnabled) {
+        <div class="auth-divider"><span>{{ 'settings.or' | translate }}</span></div>
+      }
+    }
+
+    @if (loadingSignInOptions) {
+      <p class="helper">{{ 'login.loading_sign_in_options' | translate }}</p>
+    } @else if (signInOptionsUnavailable) {
+      <p class="error" role="alert">{{(signInOptionsError) | uiText}}</p>
+      <button type="button" class="sso-button" (click)="loadSignInOptions()" [disabled]="isChangingServer">{{ 'common.try_again' | translate }}</button>
+      @if (canChangeServer) {
+        <button type="button" class="sso-button" style="margin-top:12px" (click)="useDifferentServer()" [disabled]="isChangingServer">
+          {{(isChangingServer) ? ('login.changing_server' | translate) : ('login.use_a_different_server' | translate)}}
+        </button>
+      }
+    } @else if (!passwordLoginEnabled) {
+      <p class="helper">{{ 'login.this_server_requires_single_sign_on' | translate }}</p>
+    }
+    @if (error) {
+      <div class="error" role="alert">{{(error) | uiText}}</div>
+    }
+    @if (!loadingSignInOptions && !signInOptionsUnavailable && passwordLoginEnabled) {
+    <form (ngSubmit)="submit()" #loginForm="ngForm" class="auth-form">
+      @if (!requires2FA) {
+        <label>
+          <span>{{ 'common.username' | translate }}</span>
+          <input name="username" [(ngModel)]="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        </label>
+        <label>
+          <span>{{ 'common.password' | translate }}</span>
+          <input name="password" [(ngModel)]="password" autocomplete="current-password" type="password" required>
+        </label>
+      } @else {
+        <label>
+          <span>{{ 'login.two_factor_code_or_backup_code' | translate }}</span>
+          <input name="totpToken" [(ngModel)]="totpToken" autocomplete="one-time-code" type="text" inputmode="numeric" pattern="[0-9]{6}|[a-zA-Z0-9]{8}" required autofocus [attr.placeholder]="'login.6_digit_code_or_backup_code' | translate">
+        </label>
+      }
+
+      <button type="submit" [disabled]="loginForm.invalid || isSigningIn">
+        {{(isSigningIn) ? ('login.signing_in' | translate) : ('common.sign_in' | translate)}}
+      </button>
+    </form>
+    }
+    @if (registrationEnabled && passwordLoginEnabled && !loadingSignInOptions && !signInOptionsUnavailable) {
+      <div class="footer-tagline">
+        {{ 'login.don_t_have_an_account' | translate }} <a routerLink="/register" style="color: #fbbc04;">{{ 'login.create_one' | translate }}</a>
+      </div>
+    } @else if (registrationEnabled && oidcEnabled && !loadingSignInOptions && !signInOptionsUnavailable) {
+      <div class="footer-tagline">{{ 'login.new_here_continue_with_value0_to_create_your_account' | translate: { value0: (oidcName) } }}</div>
+    } @else {
+      <div class="footer-tagline">{{ 'login.kept_self_hosted_sticky_notes' | translate }}</div>
+    }
+  </section>
+</main>

@@ -1,0 +1,56 @@
+<div class="merge-backdrop" (click)="doCancel()"></div>
+<div class="merge-dialog" role="dialog" aria-labelledby="merge-dialog-title" (click)="$event.stopPropagation()">
+  <h3 id="merge-dialog-title" class="merge-dialog__title">{{ 'merge_dialog.merge_value0_notes' | translate: { value0: (notes.length) } }}</h3>
+  <p class="merge-dialog__subtitle">
+    {{ 'merge_dialog.drag_to_reorder_or_use_the_arrows_content_will_be_combined_top_to' | translate }}
+  </p>
+
+  @if (hasDrawings()) {
+    <div class="merge-dialog__warning">
+      <span class="material-symbols-outlined">brush</span>
+      <div>
+        <strong>{{ 'merge.drawings_flattened' | uiPlural: drawingCount() }}</strong>
+        <small>{{ 'merge_dialog.drawings_become_inline_images_in_the_merged_note_and_lose_their_d' | translate }}</small>
+      </div>
+    </div>
+  }
+
+  <ol class="merge-dialog__list">
+    @for (note of notes; track note.id; let i = $index) {
+      <li class="merge-dialog__item"
+          [class.merge-dialog__item--drawing]="noteIsDrawing(note)"
+          draggable="true"
+          (dragstart)="onDragStart($event, i)"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event, i)"
+          (dragend)="onDragEnd()">
+        <span class="merge-dialog__handle material-symbols-outlined" aria-hidden="true">drag_indicator</span>
+        <div class="merge-dialog__item-text">
+          <div class="merge-dialog__summary">{{noteSummary(note)}}</div>
+          <div class="merge-dialog__type">{{(noteTypeLabel(note)) | uiText}}</div>
+        </div>
+        <div class="merge-dialog__arrows">
+          <button type="button" class="merge-dialog__arrow"
+                  [disabled]="i === 0"
+                  [attr.aria-label]="'merge_dialog.move_up' | translate"
+                  (click)="moveUp(i)">▲</button>
+          <button type="button" class="merge-dialog__arrow"
+                  [disabled]="i === notes.length - 1"
+                  [attr.aria-label]="'merge_dialog.move_down' | translate"
+                  (click)="moveDown(i)">▼</button>
+        </div>
+      </li>
+    }
+  </ol>
+
+  <p class="merge-dialog__footnote">
+    {{ 'merge_dialog.originals_will_be_moved_to_trash_10_day_recovery_the_merged_note_' | translate }}
+  </p>
+
+  <div class="merge-dialog__actions">
+    <button type="button" class="merge-dialog__btn" (click)="doCancel()" [disabled]="isMerging">{{ 'common.cancel' | translate }}</button>
+    <button type="button" class="merge-dialog__btn merge-dialog__btn--primary" (click)="doConfirm()" [disabled]="isMerging || notes.length < 2">
+      {{ (isMerging) ? ('merge_dialog.merging' | translate) : ('merge.notes' | uiPlural:notes.length) }}
+    </button>
+  </div>
+</div>

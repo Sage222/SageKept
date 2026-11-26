@@ -1,0 +1,325 @@
+@import 'collaborator-menu';
+
+[data-tooltip="true"] {
+    display: none;
+    background-color: #202124;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 60%), 0 2px 6px 2px rgb(0 0 0 / 30%);
+    border-radius: 4px;
+    z-index: 999;
+
+    &[data-is-tooltip-open="true"] {
+        display: block;
+    }
+
+    @media (max-width: 599px), (max-height: 500px) and (orientation: landscape) {
+        &[data-is-tooltip-open="true"]:not(.selectionMoreMenu):not(.colorMenu) {
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 90% !important;
+            max-width: 320px !important;
+            max-height: calc(100dvh - 24px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            z-index: 2100 !important;
+        }
+
+        &.selectionMoreMenu[data-is-tooltip-open="true"] {
+            max-width: calc(100vw - 24px);
+            min-width: 160px;
+            width: max-content;
+            z-index: 2100;
+        }
+    }
+
+    &.moreMenu {
+        padding: 7px 0;
+
+        div,
+        > .selection-select-all-menu {
+            border: 1px solid transparent;
+            letter-spacing: 0;
+            font-family: "Google Sans", Roboto, Arial, sans-serif;
+            font-size: 0.875rem;
+            font-weight: 500;
+            line-height: 1.25rem;
+            padding: 5px 10px 5px 17px;
+
+            &:hover {
+                background-color: rgba(255, 255, 255, 0.16);
+                cursor: pointer;
+            }
+        }
+    }
+
+    &.colorMenu {
+        border: 1px solid #3c4043;
+        border-radius: 14px;
+        box-sizing: border-box;
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 12px;
+        // Follow the note's width while preserving usable swatches on small
+        // overview cards. On phones the viewport takes precedence.
+        width: min(436px, max(320px, var(--appearance-anchor-width, 436px)), calc(100vw - 24px));
+        z-index: 2100;
+
+        app-note-appearance-picker { display: block; font-family: Roboto, Arial, sans-serif; }
+        .appearance-tabs {
+            background: #303134;
+            border-radius: 20px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-bottom: 12px;
+            padding: 2px;
+
+            button {
+                appearance: none;
+                background: transparent;
+                border: 0;
+                border-radius: 18px;
+                color: #bdc1c6;
+                cursor: pointer;
+                font: 500 13px/1.3 Roboto, Arial, sans-serif;
+                min-height: 32px;
+                padding: 6px 10px;
+                overflow-wrap: anywhere;
+                &[aria-selected="true"] { background: #fbbc04; color: #202124; }
+                &:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 1px; }
+            }
+        }
+        .appearance-panel[hidden] { display: none !important; }
+        .first-row {
+            display: grid;
+            grid-template-columns: repeat(9, minmax(0, 1fr));
+            gap: 6px;
+            width: 100%;
+        }
+        .color-family-swatches { display: grid; gap: 6px; min-width: 0; }
+        .color-swatch {
+            appearance: none;
+            aspect-ratio: 1;
+            background: transparent;
+            border: 2px solid transparent;
+            border-radius: 50%;
+            box-sizing: border-box;
+            cursor: pointer;
+            display: block;
+            justify-self: center;
+            max-width: 40px;
+            padding: 0;
+            width: 100%;
+            &:hover { border-color: #e8eaed; }
+            &:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 1px; }
+            &.nocolor { border-color: #5f6368; }
+        }
+        .appearance-section-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0 2px 10px;
+        }
+        .appearance-section-hint {
+            align-items: center;
+            color: #9aa0a6;
+            display: inline-flex;
+            font-size: 11px;
+            gap: 5px;
+            text-align: right;
+            i { border: 1px solid #9aa0a6; border-radius: 50%; width: 12px; height: 12px; flex: 0 0 12px; }
+        }
+        .pattern-grid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+        .pattern-choice {
+            appearance: none;
+            aspect-ratio: 1;
+            background-size: 26px;
+            background-repeat: no-repeat;
+            background-position: center;
+            border: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            justify-self: center;
+            max-width: 40px;
+            padding: 0;
+            width: 100%;
+            &:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
+        }
+        .pattern-choice[aria-pressed="true"], .background-choice[aria-pressed="true"] .background-choice-preview {
+            outline: 2px solid #fbbc04;
+            outline-offset: 2px;
+        }
+        .appearance-divider { border-top: 1px solid #3c4043; margin: 16px -12px 12px; }
+        .background-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            align-items: start;
+            gap: 10px 6px;
+        }
+        .background-choice {
+            appearance: none;
+            background: transparent;
+            border: 0;
+            border-radius: 8px;
+            color: #bdc1c6;
+            cursor: pointer;
+            min-width: 0;
+            padding: 0;
+            text-align: center;
+            width: 100%;
+            &:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
+            &:hover .background-choice-preview { border-color: #e8eaed; }
+        }
+        .background-choice-preview {
+            aspect-ratio: 1;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            box-sizing: border-box;
+            display: block;
+            margin: 0 auto;
+            max-width: 48px;
+            width: 100%;
+            &.noimage {
+                background-image: url(/assets/images/backgrounds/no-image.png) !important;
+                border-color: #5f6368;
+            }
+        }
+        .background-choice-label {
+            display: block;
+            font: 400 clamp(8px, 2.3vw, 10px)/1.3 Roboto, Arial, sans-serif;
+            margin-top: 5px;
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
+    }
+
+    &.labelMenu {
+        width: 225px;
+        padding-top: 11px;
+        background-color: #2d2e30;
+
+        .title {
+            font-size: 14px;
+            padding: 0 12px;
+            font-family: "Roboto", arial, sans-serif;
+        }
+
+        .search {
+            display: flex;
+            padding: 8px 12px;
+            align-items: center;
+            gap: 8px;
+
+            .search-icon {
+                background-image: url(/assets/images/svg/search.svg);
+                background-size: 14px 18px;
+                flex: 0 0 18px;
+                height: 18px;
+                opacity: .35;
+                background-repeat: no-repeat;
+                width: 18px;
+            }
+
+            input {
+                padding: 2px;
+                flex: 1 1 auto;
+                min-width: 0;
+                width: auto;
+                background-color: transparent;
+                border: none;
+                border-bottom: 1px solid transparent;
+                box-shadow: none;
+                color: #e8eaed;
+                font-size: 13px;
+                font-family: "Roboto", arial, sans-serif;
+                height: 25px;
+                outline: none;
+            }
+
+            input:focus {
+                border-bottom: 1px solid #5f6368;
+            }
+
+            input::placeholder {
+                color: #e8eaed;
+                opacity: 0.5;
+            }
+        }
+
+        .label-list-container {
+            padding: 6px 0;
+
+        }
+
+        button.binder-choice {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            color: inherit;
+            min-height: 36px;
+            text-align: left;
+            width: 100%;
+
+            .binder-selected {
+                flex: 0 0 18px;
+                font-size: 18px;
+                width: 18px;
+            }
+
+            .label-name { overflow-wrap: anywhere; }
+
+            &:focus-visible { outline: 2px solid #8ab4f8; outline-offset: -2px; }
+        }
+
+        .label-list {
+            display: flex;
+            padding: 5px 10px 3px;
+
+            .check-icon {
+                background: url(/assets/images/svg/box.svg) no-repeat center;
+                background-size: 18px 18px !important;
+                height: 18px;
+                width: 18px;
+                filter: brightness(0) invert(1);
+                opacity: 0.72;
+                outline: none;
+            }
+
+            .check-icon.done {
+                background: url(/assets/images/svg/box-checked.svg) no-repeat center;
+                filter: brightness(0) invert(1);
+                opacity: 0.87;
+            }
+
+            .label-name {
+                margin-left: 7px;
+                padding-top: 2px;
+                vertical-align: top;
+                word-wrap: break-word;
+                font-size: 13px;
+                font-family: "Roboto", arial, sans-serif;
+                color: #e8eaed;
+                font-weight: 500;
+            }
+        }
+
+        .label-list:hover {
+            background-color: rgba(154, 160, 166, 0.039);
+            cursor: pointer;
+        }
+
+        .label-error {
+            color: #f28b82;
+            font-family: "Roboto", arial, sans-serif;
+            font-size: 12px;
+            padding: 0 12px 6px;
+        }
+    }
+}

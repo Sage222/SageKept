@@ -1,0 +1,777 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const { test } = require('node:test');
+const ts = require('typescript');
+const rx = require('rxjs');
+
+// Exercise the actual service with deterministic HTTP, storage and lifecycle
+// boundaries. No browser, native build, server or wall-clock sleeps are needed.
+const source = ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/app/services/offline-sync.service.ts'), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true }
+}).outputText;
+
+class HttpErrorResponse extends Error {
+  constructor({ status, error }) { super(`HTTP ${status}`); this.status = status; this.error = error; }
+}
+const failure = status => rx.throwError(() => new HttpErrorResponse({ status }));
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+function harness(t, platform = 'web', initiallyOnline = true) {
+  const clock = {
+    now: 100000, nextId: 0, timers: new Map(),
+    setTimeout(callback, delay) {
+      const id = ++this.nextId;
+      this.timers.set(id, { callback, at: this.now + delay });
+      return id;
+    },
+    clearTimeout(id) { this.timers.delete(id); },
+    async advance(ms) {
+      const end = this.now + ms;
+      for (;;) {
+        const next = [...this.timers].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next || next[1].at > end) break;
+        this.now = next[1].at;
+        this.timers.delete(next[0]);
+        next[1].callback();
+        await settle();
+      }
+      this.now = end;
+      await settle();
+    }
+  };
+  const window = new EventTarget();
+  const document = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+  const navigator = { onLine: initiallyOnline };
+  const values = new Map();
+  const localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  const callbacks = new Map();
+  const app = {
+    async addListener(event, callback) {
+      callbacks.set(event, callback);
+      return { remove: async () => callbacks.delete(event) };
+    }
+  };
+  let sequence = 0;
+  const queued = [];
+  const store = {
+    partition: id => `account:${id}`,
+    ensureServerWorkspace: async partition => ({id:partition,partition,generation:'test',status:'active',protocolVersion:1}),
+    patchWorkspace: async () => {},
+    reconcile: async (_workspace,input) => { for (const result of input.results || []) if (result.ok) { const entry=(input.sent || []).find(entry=>entry.operationId === result.operationId); if(entry) await store.removeOutbox([entry.key]); } },
+    purgePartition: async () => {},
+    getSyncState: async () => ({ cursor: 1, serverOffsetMs: 0 }),
+    setSyncState: async () => {},
+    listNotes: async () => [{ id: 1, syncId: 'baseline', noteTitle: 'Existing note' }],
+    getNoteBySyncId: async (partition,id) => (await store.listNotes(partition)).find(note=>note.syncId === id),
+    hasNotes: async partition => (await store.listNotes(partition)).length > 0,
+    replaceSnapshot: async () => {},
+    listOutbox: async partition => queued.filter(entry => entry.partition === partition),
+    nextStamp: () => ({ operationId: `op-${++sequence}`, physicalMs: clock.now, logical: 0, deviceId: 'test' }),
+    enqueue: async (partition, type, syncId, payload, lww) => queued.push({
+      key: lww.operationId, operationId:lww.operationId, partition, type, syncId, payload, lww
+    }),
+    removeOutbox: async keys => {
+      for (let i = queued.length - 1; i >= 0; i--) if (keys.includes(queued[i].key)) queued.splice(i, 1);
+    },
+    markUploadStorageBlocked: async (_workspace, entry) => {
+      const current = queued.find(value => value.key === entry.key);
+      if (!current) return false;
+      current.blockedBy = 'storage'; return true;
+    },
+    getBlob: async () => new Blob([Buffer.from('89504e470d0a1a0a', 'hex')], { type: 'image/png' }),
+    putBlob: async () => {},
+    acknowledgeImage: async (_workspace, entry, url) => {
+      const source = entry.payload.url;
+      for (const pending of queued.filter(pending => pending.type === 'note.upsert')) {
+        pending.payload = JSON.parse(JSON.stringify(pending.payload).split(source).join(url));
+      }
+      await store.removeOutbox([entry.key]);
+    }
+  };
+  const auth = {
+    workspace:{ready:Promise.resolve()},
+    currentUser$: new rx.BehaviorSubject(null),
+    get currentUser() { return this.currentUser$.value; },
+    authHeaders: () => ({})
+  };
+  const requests = [];
+  let respond = (method, _url, body) => rx.of(method === 'POST'
+    ? { results: body.mutations.map(() => ({ ok: true })), serverTime: clock.now }
+    : { changes: [], cursor: 1, hasMore: false, serverTime: clock.now });
+  const http = Object.fromEntries(['get', 'post'].map(method => [method, (url, body) => rx.defer(() => {
+    requests.push({ method: method.toUpperCase(), url, body, at: clock.now });
+    return respond(method.toUpperCase(), url, body);
+  })]));
+  const errors = [];
+  const sandbox = {
+    exports: {}, navigator, window, document, Blob, FormData, localStorage,
+    console: { error: (...args) => errors.push(args), warn: (...args) => errors.push(args) },
+    Date: { now: () => clock.now }, queueMicrotask,
+    setTimeout: clock.setTimeout.bind(clock), clearTimeout: clock.clearTimeout.bind(clock),
+    require(name) {
+    if (name.endsWith('/i18n/messages')) return require('../test-support/i18n.cjs');
+  if(name.endsWith('/note-images'))return require('../test-support/note-images.cjs').loadNoteImages();
+      if (name === '@angular/core') return { Injectable: () => target => target };
+      if (name === '@angular/common/http') return { HttpErrorResponse };
+      if (name === '@capacitor/core') return {
+        Capacitor: { isNativePlatform: () => platform !== 'web', isPluginAvailable: () => platform !== 'web' },
+        registerPlugin: () => app
+      };
+      if (name === 'rxjs') return rx;
+      if (name.endsWith('/environment')) return { environment: { apiUrl: '/api' } };
+      throw new Error(`Unexpected runtime import: ${name}`);
+    }
+  };
+  vm.runInNewContext(source, sandbox);
+  const service = new sandbox.exports.OfflineSyncService(http, auth, store, { run: work => work() });
+  const states = [];
+  service.state$.subscribe(state => states.push(state));
+  t.after(() => service.ngOnDestroy());
+  return {
+    service, auth, states, store, queued, requests, clock, navigator, window, document, callbacks, errors, localStorage,
+    respond: handler => { respond = handler; },
+    login: async () => { auth.currentUser$.next({ id: 1 }); await settle(); },
+    logout: async () => { auth.currentUser$.next(null); await settle(); },
+    emit: event => window.dispatchEvent(new Event(event))
+  };
+}
+
+test('ack-only sync retains the applied cursor and pulls every page; empty polls do not refresh the library', async t => {
+  const h=harness(t);await h.login();
+  let cursor=1,events=0;const applied=[];
+  h.service.cacheChanged$.subscribe(()=>events++);
+  const reconcile=h.store.reconcile;
+  h.store.getSyncState=async()=>({cursor,serverOffsetMs:0});
+  h.store.reconcile=async(workspace,input)=>{
+    if(input.results?.length) assert.equal(input.cursor,undefined,'acknowledgements must not skip unseen remote changes');
+    applied.push(...(input.changes||[]));
+    if(input.cursor!==undefined)cursor=input.cursor;
+    await reconcile(workspace,input);
+    return !!(input.snapshot||input.results?.length||input.changes?.length);
+  };
+  h.respond((method,_url,body)=>{
+    if(method==='POST'){
+      assert.equal(body.responseMode,'ack');
+      return rx.of({protocolVersion:2,results:body.mutations.map(entry=>({operationId:entry.operationId,ok:true,canonical:{id:1,syncId:entry.syncId,noteTitle:'Acknowledged'}}))});
+    }
+    const from=Number(body.params.cursor);
+    if(from===1)return rx.of({changes:[{sequence:2,resourceType:'note',resourceSyncId:'remote',operation:'upsert',payload:{noteTitle:'Other device'}}],cursor:2,hasMore:true});
+    if(from===2)return rx.of({changes:[{sequence:3,resourceType:'note',resourceSyncId:'baseline',operation:'upsert',payload:{noteTitle:'Acknowledged'}}],cursor:3,hasMore:false});
+    return rx.of({changes:[],cursor:3,hasMore:false});
+  });
+  await h.service.enqueue('note.upsert','baseline',{noteTitle:'Acknowledged'});await settle();
+  assert.equal(cursor,3);assert.equal(h.queued.length,0);
+  assert.deepEqual(applied.map(change=>change.sequence),[2,3]);
+  assert.equal(events,2,'one acknowledgement refresh and one refresh after all incoming pages');
+  events=0;await h.service.syncNow();assert.equal(events,0);
+});
+
+test('a newer client accepts a legacy server snapshot response to its ack request', async t=>{
+  const h=harness(t);await h.login();const reconciled=[];
+  const reconcile=h.store.reconcile;
+  h.store.reconcile=async(workspace,input)=>{reconciled.push(input);await reconcile(workspace,input);return true;};
+  h.respond((method,_url,body)=>rx.of(method==='POST'
+    ?{results:body.mutations.map(()=>({ok:true})),snapshot:{notes:[{id:1,syncId:'baseline',noteTitle:'Legacy canonical'}],reminders:[],attachments:[],cursor:10}}
+    :{changes:[],cursor:10,hasMore:false}));
+  await h.service.enqueue('note.upsert','baseline',{noteTitle:'Local'});await settle();
+  const acknowledgement=reconciled.find(input=>input.results?.length);
+  assert.equal(acknowledgement.cursor,10);assert.equal(acknowledgement.results[0].canonical.noteTitle,'Legacy canonical');assert.equal(h.queued.length,0);
+});
+
+test('older cached account preferences settle after normalization instead of continuously restarting iOS sync', async t => {
+  const h = harness(t, 'ios');
+  const exports = {};
+  const authSource = ts.transpileModule(fs.readFileSync('src/app/services/auth.service.ts', 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true }
+  }).outputText;
+  vm.runInNewContext(authSource, { exports, localStorage: { setItem() {} }, require(name) {
+    if (name.endsWith('/i18n/messages')) return require('../test-support/i18n.cjs');
+    if (name === '@angular/core') return { Injectable: () => target => target };
+    if (name === '@angular/common/http' || name === '@capacitor/core' || name.endsWith('/note-html')) return {};
+    if (name === 'rxjs') return rx;
+    if (name.endsWith('/environment')) return { environment: { apiUrl: '/api' } };
+    throw new Error(`Unexpected auth dependency: ${name}`);
+  } });
+  h.auth.applyWorkspacePreferences = exports.AuthService.prototype.applyWorkspacePreferences;
+  h.auth.mergeAccountPreferences = exports.AuthService.prototype.mergeAccountPreferences;
+  h.store.ensureServerWorkspace = async partition => ({ id: partition, partition, generation: 'test', status: 'active', protocolVersion: 2 });
+  // Existing device caches can predate the shared-label/binder preferences.
+  h.store.listResources = async () => [{ theme: 'light', followSystemTheme: false, showPastReminders: false }];
+  h.respond(() => h.requests.length > 4 ? rx.NEVER : rx.of({
+    protocolVersion: 2, changes: [], cursor: 1, hasMore: false, serverTime: h.clock.now
+  }));
+  await h.login();
+  await settle();
+  assert.equal(h.service.state$.value, 'saved');
+  assert.ok(h.requests.length <= 2, 'normalizing preferences may request one follow-up pass, then sync must stop');
+  assert.equal(h.auth.currentUser.inheritSharedLabels, true);
+  assert.equal(h.auth.currentUser.inheritSharedBinders, true);
+  h.store.listResources = async () => [{ theme: 'dark', followSystemTheme: false, showPastReminders: false }];
+  h.auth.applyWorkspacePreferences({ theme: 'dark' });
+  await settle();
+  await settle();
+  assert.equal(h.auth.currentUser.theme, 'dark', 'real preference changes still apply');
+  assert.equal(h.auth.currentUser.inheritSharedLabels, true, 'partial preferences retain existing settings');
+  assert.equal(h.service.state$.value, 'saved');
+});
+
+test('outages stay offline through queued saves and capped 5/15/30-second retries', async t => {
+  const h = harness(t);
+  h.respond(() => failure(0));
+  await h.login();
+  assert.equal(h.service.state$.value, 'offline');
+  h.states.length = 0;
+  await h.service.enqueue('note.upsert', 'note-one', { noteTitle: 'Keep me' });
+  await h.service.enqueue('note.upsert', 'note-two', { noteTitle: 'And me' });
+  assert.equal(h.requests.length, 1, 'autosaves must not bypass recovery backoff');
+  await h.clock.advance(4999);
+  assert.equal(h.requests.length, 1);
+  await h.clock.advance(1);
+  assert.equal(h.requests.length, 2);
+  await h.clock.advance(14999);
+  assert.equal(h.requests.length, 2);
+  await h.clock.advance(1);
+  assert.equal(h.requests.length, 3);
+  assert.equal(h.service.isConnectionDegraded(), true, 'outage must outlast the temporary 10-second timeout');
+  await h.service.enqueue('note.upsert', 'note-three', {});
+  for (let i = 0; i < 3; i++) await h.clock.advance(30000);
+  assert.equal(h.requests.length, 6);
+  assert.equal(h.queued.length, 3, 'failed requests must retain outgoing edits');
+  assert.ok(h.states.every(state => state === 'offline'));
+  assert.equal(h.clock.timers.size, 1);
+});
+
+test('physical offline suppresses retries; online recovery waits for the server', async t => {
+  const h = harness(t);
+  await h.login();
+  h.navigator.onLine = false;
+  h.emit('offline');
+  await h.service.enqueue('note.upsert', 'note-one', {});
+  await h.clock.advance(60000);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.clock.timers.size, 0);
+  h.respond(() => failure(503));
+  h.states.length = 0;
+  h.navigator.onLine = true;
+  h.emit('online');
+  await settle();
+  assert.equal(h.requests.length, 2, 'online should retry immediately');
+  assert.ok(h.states.every(state => state === 'offline'));
+  assert.equal(h.service.state$.value, 'offline');
+});
+
+for (const [platform, status] of [['ios', -1], ['android', 0]]) {
+  for (const alreadyOpen of [true, false]) {
+    test(`${platform}: ${alreadyOpen ? 'connection loss while open' : 'reopening without service'} stays offline`, async t => {
+      const h = harness(t, platform);
+      if (alreadyOpen) await h.login();
+      h.respond(() => failure(status));
+      h.states.length = 0;
+      // Native WebViews can continue reporting onLine=true without emitting an
+      // offline event. The failed HTTP request must identify the outage itself.
+      if (alreadyOpen) await h.service.syncNow();
+      else await h.login();
+      assert.equal(h.service.state$.value, 'offline');
+      assert.ok(!h.states.includes('error'));
+      h.states.length = 0;
+      await h.service.enqueue('note.upsert', 'offline-edit', { noteTitle: 'Preserved' });
+      await h.clock.advance(5000);
+      h.callbacks.get('resume')();
+      await settle();
+      assert.ok(h.states.every(state => state === 'offline'));
+      assert.equal(h.queued.length, 1);
+      assert.equal(h.errors.length, 0);
+      h.respond((method, _url, body) => rx.of(method === 'POST'
+        ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+        : { changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now }));
+      h.emit('online');
+      await settle();
+      assert.equal(h.service.state$.value, 'saved');
+      assert.equal(h.queued.length, 0);
+    });
+  }
+}
+
+test('iOS: reopening with onLine=false makes no requests and shows offline immediately', async t => {
+  const h = harness(t, 'ios', false);
+  await h.login();
+  await h.service.enqueue('note.upsert', 'offline-edit', {});
+  h.callbacks.get('resume')();
+  await settle();
+  assert.ok(h.states.every(state => state === 'offline'));
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.clock.timers.size, 0);
+  assert.equal(h.queued.length, 1);
+});
+
+test('real recovery changes to syncing only after a response, then drains the queue', async t => {
+  const h = harness(t);
+  h.respond(() => failure(504));
+  await h.login();
+  await h.service.enqueue('note.upsert', 'note-one', { noteTitle: 'Offline edit' });
+  const upload = new rx.Subject();
+  const changes = new rx.Subject();
+  h.respond(method => method === 'POST' ? upload : changes);
+  h.states.length = 0;
+  h.emit('online');
+  await settle();
+  assert.equal(h.service.state$.value, 'offline', 'attempting a request proves nothing');
+  upload.next({ results: [{ ok: true }], serverTime: h.clock.now });
+  await settle();
+  assert.equal(h.service.state$.value, 'syncing');
+  assert.equal(h.queued.length, 0);
+  changes.next({ changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now });
+  await settle();
+  assert.equal(h.service.state$.value, 'saved');
+  assert.deepEqual(h.states, ['syncing', 'saved']);
+  assert.equal(h.clock.timers.size, 0);
+  const count = h.requests.length;
+  await h.clock.advance(60000);
+  assert.equal(h.requests.length, count, 'successful recovery cancels retry timers');
+});
+
+test('initial bootstrap intent survives an outage and deferred load requests', async t => {
+  const h = harness(t);
+  h.store.listNotes = async () => [];
+  h.respond(() => failure(0));
+  await h.login();
+  assert.equal(h.requests[0].url, '/api/sync/bootstrap');
+  await h.service.syncNow({ bootstrapIfEmpty: true });
+  let replaced = 0;
+  const reconcile = h.store.reconcile;
+  h.store.reconcile = async (...args) => { if(args[1].snapshot) replaced++; return reconcile(...args); };
+  h.respond((_method, url) => rx.of(url.endsWith('/bootstrap')
+    ? { notes: [], reminders: [], attachments: [], cursor: 1, serverTime: h.clock.now }
+    : { changes: [], cursor: 1, hasMore: false, serverTime: h.clock.now }));
+  await h.clock.advance(5000);
+  assert.deepEqual(h.requests.map(request => request.url), [
+    '/api/sync/bootstrap', '/api/sync/bootstrap', '/api/sync/changes'
+  ]);
+  assert.equal(replaced, 1);
+  assert.equal(h.service.state$.value, 'saved');
+});
+
+test('a real authentication failure during recovery stops outage retries', async t => {
+  const h = harness(t);
+  h.respond(() => failure(0));
+  await h.login();
+  h.respond(() => failure(401));
+  await h.clock.advance(5000);
+  assert.equal(h.service.state$.value, 'error');
+  assert.equal(h.clock.timers.size, 0);
+});
+
+for (const platform of ['android', 'ios']) {
+  test(`${platform}: resume retries immediately and concurrent lifecycle signals coalesce`, async t => {
+    const h = harness(t, platform);
+    h.respond(() => failure(502));
+    await h.login();
+    const response = new rx.Subject();
+    h.respond(() => response);
+    h.callbacks.get('resume')();
+    h.callbacks.get('appStateChange')({ isActive: true });
+    h.emit('online');
+    h.document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    assert.equal(h.requests.length, 2);
+    assert.equal(h.service.state$.value, 'offline');
+    response.next({ changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now });
+    await settle();
+    assert.equal(h.service.state$.value, 'saved');
+    assert.equal(h.requests.length, 2, 'duplicate resume signals must not schedule a second sync');
+  });
+}
+
+test('timeouts remain offline, and late responses do not announce recovery', async t => {
+  const h = harness(t);
+  const hung = new rx.Subject();
+  h.respond(() => hung);
+  await h.login();
+  await h.clock.advance(12000);
+  assert.equal(h.service.state$.value, 'offline');
+  const retry = new rx.Subject();
+  h.respond(() => retry);
+  h.states.length = 0;
+  await h.clock.advance(5000);
+  await h.clock.advance(12000);
+  assert.equal(h.requests.length, 2);
+  hung.next({ changes: [], cursor: 2, hasMore: false });
+  retry.next({ changes: [], cursor: 2, hasMore: false });
+  await settle();
+  assert.ok(h.states.every(state => state === 'offline'));
+});
+
+for (const status of [400, 401, 403, 500]) {
+  test(`HTTP ${status} requires attention and does not schedule outage retries`, async t => {
+    const h = harness(t);
+    h.respond(() => failure(status));
+    await h.login();
+    assert.equal(h.service.state$.value, 'error');
+    assert.equal(h.clock.timers.size, 0);
+  });
+}
+
+test('storage failures while physically offline require attention', async t => {
+  const h = harness(t);
+  await h.login();
+  h.navigator.onLine = false;
+  h.emit('offline');
+  h.store.enqueue = async () => { throw new Error('QuotaExceededError'); };
+  await assert.rejects(h.service.enqueue('note.upsert', 'note-one', {}), /QuotaExceededError/);
+  assert.equal(h.service.state$.value, 'error');
+  h.emit('offline');
+  assert.equal(h.service.state$.value, 'error', 'another offline signal must not hide a storage failure');
+});
+
+test('an offline event cannot disguise a local persistence error in an in-flight sync', async t => {
+  const h = harness(t);
+  const response = new rx.Subject();
+  h.respond(() => response);
+  await h.login();
+  h.navigator.onLine = false;
+  h.emit('offline');
+  h.store.reconcile = async () => { throw new Error('Storage unavailable'); };
+  response.next({ changes: [], cursor: 2, hasMore: false });
+  await settle();
+  assert.equal(h.service.state$.value, 'error');
+  assert.equal(h.clock.timers.size, 0);
+});
+
+test('new edits during an in-flight sync are flushed in a coalesced follow-up', async t => {
+  const h = harness(t);
+  const response = new rx.Subject();
+  h.respond(() => response);
+  await h.login();
+  await h.service.enqueue('note.upsert', 'note-one', { noteTitle: 'During sync' });
+  h.respond((method, _url, body) => rx.of(method === 'POST'
+    ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+    : { changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now }));
+  response.next({ changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now });
+  await settle();
+  assert.equal(h.queued.length, 0);
+  assert.deepEqual(h.requests.map(request => request.method), ['GET', 'POST', 'GET']);
+  assert.equal(h.service.state$.value, 'saved');
+});
+
+for (const platform of ['web', 'ios', 'android']) {
+  for (const type of ['image.upload', 'attachment.upload', 'attachment.upsert']) {
+    test(`${platform}: a 507 on ${type} keeps media queued while text and incoming changes sync`, async t => {
+      const h = harness(t, platform);
+      await h.login();
+      const lastSyncedAt = h.service.lastSyncedAt$.value;
+      await h.clock.advance(1000);
+      h.requests.length = 0;
+      await h.store.enqueue(h.service.partition, type, 'media', type === 'image.upload'
+        ? { url: '/__kept_local_media/photo', filename: 'photo.png' }
+        : { noteSyncId: 'baseline', filename: 'file.pdf', blobKey: 'file' }, h.store.nextStamp());
+      await h.store.enqueue(h.service.partition, 'note.upsert', 'text-note', { noteTitle: 'Text still saves' }, h.store.nextStamp());
+      h.respond((method, url, body) => url.includes('/uploads/images') || url.includes('/attachments')
+        ? rx.throwError(() => new HttpErrorResponse({ status: 507, error: { code: 'STORAGE_QUOTA_EXCEEDED' } }))
+        : rx.of(method === 'POST'
+          ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+          : { changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now }));
+      await h.service.syncNow();
+      assert.equal(h.queued.length, 1);
+      assert.equal(h.queued[0].type, type);
+      assert.equal(h.queued[0].blockedBy, 'storage');
+      assert.equal(h.service.storageBlocked$.value, true);
+      assert.equal(h.service.lastSyncedAt$.value, lastSyncedAt, 'blocked media must not advance the full-sync timestamp');
+      assert.match(h.service.storageFullMessage, /storage is full.*upgrade or delete some files\/images/);
+      assert.equal(h.service.state$.value, 'saved');
+      assert.equal(h.service.isConnectionDegraded(), false);
+      assert.equal(h.errors.length, 0);
+      assert.ok(h.requests.some(request => request.url.endsWith('/sync/mutations') && request.body.mutations[0].syncId === 'text-note'));
+      assert.equal(h.requests.at(-1).url, '/api/sync/changes');
+      assert.ok(await h.store.getBlob(h.service.partition, 'file'), 'local media remains available');
+
+      h.respond((method, url, body) => rx.of(url.includes('/uploads/images') ? { url: '/api/uploads/images/photo.png' }
+        : url.includes('/attachments') ? { id: 2, syncId: 'media' }
+        : method === 'POST' ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+        : { changes: [], cursor: 3, hasMore: false, serverTime: h.clock.now }));
+      await h.service.syncNow();
+      assert.equal(h.queued.length, 0);
+      assert.equal(h.service.storageBlocked$.value, false);
+      assert.equal(h.service.state$.value, 'saved');
+      assert.equal(h.service.lastSyncedAt$.value, h.clock.now);
+    });
+  }
+}
+
+test('a blocked image keeps its dependent note local until retry succeeds', async t => {
+  const h = harness(t);
+  await h.login();
+  const url = '/__kept_local_media/photo';
+  await h.store.enqueue(h.service.partition, 'image.upload', 'image', { url, filename: 'photo.png' }, h.store.nextStamp());
+  await h.store.enqueue(h.service.partition, 'note.upsert', 'photo-note', { noteTitle: 'Photo note', images: [{ dataUrl: url }] }, h.store.nextStamp());
+  await h.store.enqueue(h.service.partition, 'reminder.upsert', 'reminder', { noteSyncId: 'photo-note' }, h.store.nextStamp());
+  await h.store.enqueue(h.service.partition, 'note.upsert', 'other-note', { noteTitle: 'Unrelated edit' }, h.store.nextStamp());
+  h.respond((method, requestUrl, body) => requestUrl.includes('/uploads/images') ? failure(507)
+    : rx.of(method === 'POST' ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+      : { changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now }));
+  await h.service.syncNow();
+  const sent = h.requests.filter(request => request.method === 'POST' && request.url.endsWith('/mutations')).flatMap(request => request.body.mutations);
+  assert.deepEqual(sent.map(entry => entry.syncId), ['other-note']);
+  assert.equal(h.queued.length, 3, 'dependent changes must remain recoverable');
+  h.respond((method, requestUrl, body) => rx.of(requestUrl.includes('/uploads/images') ? { url: '/api/uploads/images/photo.png' }
+    : method === 'POST' ? { results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now }
+      : { changes: [], cursor: 3, hasMore: false, serverTime: h.clock.now }));
+  await h.service.syncNow();
+  assert.equal(h.queued.length, 0);
+  const note = h.requests.filter(request => request.url.endsWith('/mutations')).at(-1).body.mutations.find(entry => entry.syncId === 'photo-note');
+  assert.equal(note.payload.images[0].dataUrl, '/api/uploads/images/photo.png');
+});
+
+test('upload authentication and local persistence errors remain real sync errors', async t => {
+  for (const status of [401, 403, 400]) {
+    const h = harness(t);
+    await h.login();
+    await h.store.enqueue(h.service.partition, 'image.upload', 'image', { url: '/__kept_local_media/photo', filename: 'photo.png' }, h.store.nextStamp());
+    h.respond(() => failure(status));
+    await h.service.syncNow();
+    assert.equal(h.service.state$.value, 'error');
+    assert.equal(h.service.storageBlocked$.value, false);
+    assert.equal(h.queued.length, 1);
+  }
+  const h = harness(t);
+  await h.login();
+  await h.store.enqueue(h.service.partition, 'image.upload', 'image', { url: '/__kept_local_media/photo', filename: 'photo.png' }, h.store.nextStamp());
+  h.respond(() => failure(507));
+  h.store.markUploadStorageBlocked = async () => { throw new Error('Local storage unavailable'); };
+  await h.service.syncNow();
+  assert.equal(h.service.state$.value, 'error');
+});
+
+test('a late 507 after logout cannot flag a different workspace', async t => {
+  const h = harness(t);
+  await h.login();
+  await h.store.enqueue(h.service.partition, 'image.upload', 'image', { url: '/__kept_local_media/photo', filename: 'photo.png' }, h.store.nextStamp());
+  const upload = new rx.Subject();
+  h.respond(() => upload);
+  const syncing = h.service.syncNow();
+  await settle();
+  await h.logout();
+  upload.error(new HttpErrorResponse({ status: 507 }));
+  await syncing;
+  assert.equal(h.service.storageBlocked$.value, false);
+  assert.equal(h.queued[0].blockedBy, undefined);
+  assert.equal(h.errors.length, 0);
+});
+
+test('logout and service teardown cancel retries and lifecycle listeners', async t => {
+  const h = harness(t, 'android');
+  h.respond(() => failure(0));
+  await h.login();
+  await h.logout();
+  await h.clock.advance(60000);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.clock.timers.size, 0);
+  h.service.ngOnDestroy();
+  assert.equal(h.callbacks.size, 0);
+  h.emit('online');
+  h.document.dispatchEvent(new Event('visibilitychange'));
+  await settle();
+  assert.equal(h.requests.length, 1);
+});
+
+test('last-synced time advances only after outgoing edits and the incoming pull finish', async t => {
+  const h = harness(t);
+  assert.equal(h.service.lastSyncedAt$.value, null);
+  await h.login();
+  const previous = h.service.lastSyncedAt$.value;
+  assert.equal(previous, h.clock.now);
+  await h.clock.advance(1000);
+  await h.store.enqueue(h.service.partition, 'note.upsert', 'edited', { noteTitle: 'Changed' }, h.store.nextStamp());
+  const incoming = new rx.Subject();
+  h.respond((method, _url, body) => method === 'POST'
+    ? rx.of({ results: body.mutations.map(() => ({ ok: true })), serverTime: h.clock.now })
+    : incoming);
+  const sync = h.service.syncNow();
+  await settle();
+  assert.equal(h.queued.length, 0);
+  assert.equal(h.service.state$.value, 'syncing');
+  assert.equal(h.service.lastSyncedAt$.value, previous);
+  incoming.next({ changes: [], cursor: 2, hasMore: false, serverTime: h.clock.now });
+  incoming.complete();
+  await sync;
+  assert.equal(h.service.lastSyncedAt$.value, h.clock.now);
+  assert.equal(h.service.state$.value, 'saved');
+});
+
+test('outages, authentication and persistence failures never advance last-synced time', async t => {
+  for (const status of [0, 401, 503]) {
+    const h = harness(t);
+    await h.login();
+    const previous = h.service.lastSyncedAt$.value;
+    await h.clock.advance(1000);
+    h.respond(() => failure(status));
+    await h.service.syncNow();
+    assert.equal(h.service.lastSyncedAt$.value, previous);
+    assert.equal(h.service.state$.value, status === 401 ? 'error' : 'offline');
+  }
+  const h = harness(t);
+  await h.login();
+  const previous = h.service.lastSyncedAt$.value;
+  await h.clock.advance(1000);
+  h.store.reconcile = async () => { throw new Error('Device storage failed'); };
+  await h.service.syncNow();
+  assert.equal(h.service.state$.value, 'error');
+  assert.equal(h.service.lastSyncedAt$.value, previous);
+});
+
+test('a coalesced follow-up sync finishes before last-synced time advances', async t => {
+  const h = harness(t);
+  await h.login();
+  const previous = h.service.lastSyncedAt$.value;
+  await h.clock.advance(1000);
+  const first = new rx.Subject();
+  const second = new rx.Subject();
+  let pulls = 0;
+  h.respond(() => ++pulls === 1 ? first : second);
+  const sync = h.service.syncNow();
+  await settle();
+  await h.service.syncNow();
+  first.next({ changes: [], cursor: 2, hasMore: false });
+  first.complete();
+  await sync;
+  await settle();
+  assert.equal(pulls, 2);
+  assert.equal(h.service.state$.value, 'syncing');
+  assert.equal(h.service.lastSyncedAt$.value, previous);
+  second.next({ changes: [], cursor: 3, hasMore: false });
+  second.complete();
+  await settle();
+  assert.equal(h.service.state$.value, 'saved');
+  assert.equal(h.service.lastSyncedAt$.value, h.clock.now);
+});
+
+test('last-synced time is cleared on account changes, logout and device-only mode', async t => {
+  const h = harness(t);
+  await h.login();
+  assert.equal(h.service.lastSyncedAt$.value, h.clock.now);
+  h.respond(() => failure(503));
+  h.auth.currentUser$.next({ id: 2 });
+  await settle();
+  assert.equal(h.service.lastSyncedAt$.value, null);
+  await h.logout();
+  assert.equal(h.service.lastSyncedAt$.value, null);
+  h.auth.isLocal = true;
+  h.auth.workspace.local = { partition: 'local:test' };
+  h.auth.currentUser$.next({ id: 0 });
+  await settle();
+  assert.equal(h.service.state$.value, 'saved');
+  assert.equal(h.service.lastSyncedAt$.value, null);
+});
+
+test('pending count includes persisted and newly saved edits during a physical outage', async t => {
+  const h = harness(t, 'ios', false);
+  for (const id of ['one', 'two', 'three']) {
+    await h.store.enqueue('account:1', 'note.upsert', id, { noteTitle: id }, h.store.nextStamp());
+  }
+  await h.login();
+  assert.equal(h.service.pendingCount$.value, 3);
+  assert.equal(h.service.state$.value, 'offline');
+  assert.equal(h.requests.length, 0);
+  await h.service.enqueue('note.upsert', 'four', { noteTitle: 'Four' });
+  assert.equal(h.service.pendingCount$.value, 4);
+  await h.logout();
+  assert.equal(h.service.pendingCount$.value, 0);
+});
+
+test('pending count follows partial acknowledgements and clears after successful retry', async t => {
+  const h = harness(t);
+  await h.login();
+  for (const id of ['one', 'two']) await h.store.enqueue(h.service.partition, 'note.upsert', id, {}, h.store.nextStamp());
+  h.respond(() => rx.of({ results: [{ ok: true }, { ok: false, error: 'Rejected mutation' }] }));
+  await h.service.syncNow();
+  assert.equal(h.service.pendingCount$.value, 1);
+  assert.equal(h.service.state$.value, 'error');
+  h.respond((method, _url, body) => rx.of(method === 'POST'
+    ? { results: body.mutations.map(() => ({ ok: true })) }
+    : { changes: [], cursor: 2, hasMore: false }));
+  await h.service.syncNow({ recovery: true });
+  assert.equal(h.service.pendingCount$.value, 0);
+  assert.equal(h.service.state$.value, 'saved');
+});
+
+test('queued counts never carry over to another account or device-only workspace', async t => {
+  const h = harness(t, 'android', false);
+  await h.login();
+  await h.service.enqueue('note.upsert', 'one', {});
+  assert.equal(h.service.pendingCount$.value, 1);
+  h.auth.currentUser$.next({ id: 2 });
+  await settle();
+  assert.equal(h.service.pendingCount$.value, 0);
+  h.auth.isLocal = true;
+  h.auth.workspace.local = { partition: 'local:test' };
+  h.auth.currentUser$.next({ id: 0 });
+  await settle();
+  assert.equal(h.service.pendingCount$.value, 0);
+});
+
+test('a late queued-count read cannot replace the count for a newly selected account', async t => {
+  const h = harness(t, 'ios', false);
+  await h.login();
+  await h.service.enqueue('note.upsert', 'old-account', {});
+  const original = h.store.listOutbox;
+  let finishRead;
+  h.store.listOutbox = partition => partition === 'account:1'
+    ? new Promise(resolve => { finishRead = resolve; }) : original(partition);
+  const pending = h.service.syncNow();
+  h.auth.currentUser$.next({ id: 2 });
+  await settle();
+  assert.equal(h.service.pendingCount$.value, 0);
+  finishRead([{ partition: 'account:1' }]);
+  await pending;
+  assert.equal(h.service.pendingCount$.value, 0);
+});
+
+test('last good sync time survives offline reopening and stays scoped to its account', async t => {
+  const h = harness(t, 'ios');
+  await h.login();
+  const time = h.service.lastSyncedAt$.value;
+  await h.logout();
+  h.respond(() => failure(0));
+  await h.clock.advance(1000);
+  await h.login();
+  assert.equal(h.service.state$.value, 'offline');
+  assert.equal(h.service.lastSyncedAt$.value, time);
+  h.auth.currentUser$.next({ id: 2 });
+  await settle();
+  assert.equal(h.service.lastSyncedAt$.value, null);
+});
+
+test('position deltas recover a missing note by bootstrapping before advancing the cursor',async t=>{
+  const h=harness(t);let cursor=1,known=false,bootstraps=0;
+  h.store.listResources=async()=>[];
+  h.store.getSyncState=async()=>({cursor,serverOffsetMs:0});
+  h.store.missingNotePositions=async(_partition,positions)=>known?[]:positions;
+  h.store.reconcile=async(_workspace,input)=>{if(input.snapshot){known=true;bootstraps++;}if(input.cursor)cursor=input.cursor;};
+  h.respond((_method,url,options)=>{
+    if(url.endsWith('/bootstrap')) return rx.of({protocolVersion:2,notes:[{id:7,syncId:'missing',noteBody:'Full content',sortOrder:70}],reminders:[],attachments:[],cursor:9,serverTime:h.clock.now});
+    assert.equal(options.params.notePositions,'1');
+    return rx.of(cursor===1?{protocolVersion:2,changes:[{sequence:2,resourceType:'notePosition',resourceSyncId:'missing',operation:'upsert',payload:{id:7,syncId:'missing',sortOrder:70}}],cursor:2,hasMore:false}:{protocolVersion:2,changes:[],cursor:9,hasMore:false});
+  });
+  await h.login();await settle();
+  assert.equal(bootstraps,1);assert.equal(known,true);assert.equal(cursor,9);
+  assert.deepEqual(h.requests.map(request=>request.url),['/api/sync/changes','/api/sync/bootstrap','/api/sync/changes']);
+  assert.equal(h.service.state$.value,'saved');
+});
+
+test('note-only acknowledgements and incoming positions identify affected notes; catalogue changes request a full refresh',async t=>{
+ const h=harness(t);await h.login();const events=[];
+ h.service.cacheChanged$.subscribe(event=>events.push(event));
+ h.store.missingNotePositions=async()=>[];
+ const reconcile=h.store.reconcile;h.store.reconcile=async(...args)=>{await reconcile(...args);return true;};
+ h.queued.push({key:'targeted-op',partition:'account:1',operationId:'targeted-op',type:'note.upsert',syncId:'edited',payload:{noteTitle:'Edit'},lww:{}});
+ h.respond((method,_url,body)=>rx.of(method==='POST'
+   ?{results:body.mutations.map(entry=>({ok:true,operationId:entry.operationId,canonical:{id:1,syncId:entry.syncId,noteTitle:'Edit'}}))}
+   :{changes:[{sequence:2,resourceType:'note',resourceSyncId:'remote',operation:'upsert',payload:{id:2,syncId:'remote'}},{sequence:3,resourceType:'notePosition',resourceSyncId:'positioned',operation:'upsert',payload:{id:3,syncId:'positioned',sortOrder:4}}],cursor:3,hasMore:false}));
+ await h.service.syncNow();
+ assert.deepEqual(events.map(event=>Array.from(event.noteSyncIds).sort()),[['edited'],['positioned','remote']]);
+ events.length=0;
+ h.respond(()=>rx.of({changes:[{sequence:4,resourceType:'label',resourceSyncId:'renamed',operation:'upsert',payload:{id:1,name:'Renamed'}}],cursor:4,hasMore:false}));
+ await h.service.syncNow();assert.deepEqual(events,[undefined]);
+});

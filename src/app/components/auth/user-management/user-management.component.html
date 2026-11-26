@@ -1,0 +1,483 @@
+<main class="auth-page management-page">
+  <section class="auth-panel wide">
+
+    <div class="management-header">
+      <div class="brand-row">
+        <span class="brand-wordmark"><span class="brand-sage">Sage</span><span class="brand-kept">Kept</span></span>
+      </div>
+      <a routerLink="/">{{ 'settings.back_to_notes' | translate }}</a>
+    </div>
+
+    <h1>{{ 'user_management.user_management' | translate }}</h1>
+
+    @if (error) { <div class="error global-msg">{{(error) | uiText}}</div> }
+    @if (success) { <div class="success global-msg">{{(success) | uiText}}</div> }
+
+    <!-- ── Group: Registration ──────────────────────────────────────────── -->
+    <div class="settings-group">
+      <h2 class="group-title color-blue">
+        <span class="material-symbols-outlined">how_to_reg</span>
+        {{ 'user_management.registration' | translate }}
+      </h2>
+
+      <section class="settings-section reg-section">
+        <div class="section-title">{{ 'user_management.sign_up_policy' | translate }}</div>
+        <p class="section-desc">
+          {{ 'user_management.control_whether_new_visitors_can_register_their_own_accounts_and_' | translate }}
+        </p>
+
+        <div class="reg-toggles">
+          <label class="reg-toggle">
+            <input type="checkbox" [(ngModel)]="selfRegistrationEnabled" (change)="saveRegistrationSettings()">
+            <div>
+              <strong>{{ 'user_management.allow_self_registration' | translate }}</strong>
+              <small>{{ 'user_management.new_users_can_create_their_own_accounts_from_the_login_page' | translate }}</small>
+            </div>
+          </label>
+          @if (selfRegistrationEnabled) {
+            <label class="reg-toggle">
+              <input type="checkbox" [(ngModel)]="requireApproval" (change)="saveRegistrationSettings()">
+              <div>
+                <strong>{{ 'user_management.require_admin_approval' | translate }}</strong>
+                <small>{{ 'user_management.new_self_registered_accounts_must_be_approved_by_an_admin_before_' | translate }}</small>
+              </div>
+            </label>
+          }
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Group: Add user ──────────────────────────────────────────────── -->
+    <div class="settings-group">
+      <h2 class="group-title color-green">
+        <span class="material-symbols-outlined">person_add</span>
+        {{ 'user_management.add_a_user' | translate }}
+      </h2>
+
+      <section class="settings-section create-user-section">
+        <div class="section-title">{{ 'register.create_account' | translate }}</div>
+        <p class="section-desc">
+          {{ 'user_management.provision_a_new_user_directly_they_ll_be_active_immediately_no_ap' | translate }}
+        </p>
+
+        <form (ngSubmit)="createUser()" #userForm="ngForm" class="auth-form user-form">
+          <label>
+            <span>{{ 'common.username' | translate }}</span>
+            <input name="username" [ngModel]="username" (ngModelChange)="onUsernameChange($event)" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" minlength="3" required>
+            <small class="hint">{{ 'auth.username_minimum_length' | translate }}</small>
+          </label>
+          <label>
+            <span>{{ 'common.display_name' | translate }}</span>
+            <input name="displayName" [(ngModel)]="displayName" (input)="onDisplayNameInput()" autocomplete="off" [attr.placeholder]="'user_management.defaults_to_the_username_change_it_to_anything_you_d_like' | translate">
+          </label>
+          <label>
+            <span>{{ 'common.email' | translate }}</span>
+            <input name="email" [(ngModel)]="email" autocomplete="off" type="email" [attr.placeholder]="'user_management.user_example_com' | translate">
+          </label>
+          <label>
+            <span>{{ 'common.password' | translate }}</span>
+            <input name="password" [(ngModel)]="password" autocomplete="new-password" type="password" minlength="8" required>
+            <small class="hint">{{ 'auth.password_minimum_length' | translate }}</small>
+          </label>
+          <label>
+            <span>{{ 'user_management.role' | translate }}</span>
+            <select name="role" [(ngModel)]="role">
+              <option value="user">{{ 'navbar.user' | translate }}</option>
+              <option value="admin">{{ 'user_management.admin' | translate }}</option>
+            </select>
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" [disabled]="userForm.invalid || isSaving">
+              {{(isSaving) ? ('user_management.creating' | translate) : ('user_management.create_user' | translate)}}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- ── Group: Invite by email ──────────────────────────────────────────
+         Hidden entirely unless an email server is configured for this
+         instance; the invite form itself only shows once the toggle below
+         is on. -->
+    @if (smtpConfigured) {
+      <div class="settings-group">
+        <h2 class="group-title color-green">
+          <span class="material-symbols-outlined">mail</span>
+          {{ 'user_management.invite_by_email' | translate }}
+        </h2>
+
+        <section class="settings-section">
+          <div class="reg-toggles">
+            <label class="reg-toggle">
+              <input type="checkbox" [(ngModel)]="inviteByEmailEnabled" [disabled]="isSavingInviteSetting" (change)="toggleInviteByEmail()">
+              <div>
+                <strong>{{ 'user_management.allow_inviting_new_users_by_email' | translate }}</strong>
+                <small>{{ 'user_management.lets_you_send_someone_a_link_to_set_up_their_own_username_and_pas' | translate }}</small>
+              </div>
+            </label>
+          </div>
+
+          @if (inviteByEmailEnabled) {
+            @if (inviteError) { <div class="error global-msg" style="margin-top: 16px;">{{(inviteError) | uiText}}</div> }
+            @if (inviteSuccess) { <div class="success global-msg" style="margin-top: 16px;">{{(inviteSuccess) | uiText}}</div> }
+            <form (ngSubmit)="sendInvite()" #inviteFormRef="ngForm" class="auth-form user-form" style="margin-top: 16px;">
+              <label>
+                <span>{{ 'common.email' | translate }}</span>
+                <input name="inviteEmail" [(ngModel)]="inviteEmail" autocomplete="off" type="email" required [attr.placeholder]="'user_management.friend_example_com' | translate">
+              </label>
+              <label>
+                <span>{{ 'user_management.role' | translate }}</span>
+                <select name="inviteRole" [(ngModel)]="inviteRole">
+                  <option value="user">{{ 'navbar.user' | translate }}</option>
+                  <option value="admin">{{ 'user_management.admin' | translate }}</option>
+                </select>
+              </label>
+              <div class="form-actions">
+                <button type="submit" [disabled]="inviteFormRef.invalid || isSendingInvite">
+                  {{(isSendingInvite) ? ('user_management.sending' | translate) : ('user_management.send_invitation' | translate)}}
+                </button>
+              </div>
+            </form>
+          }
+        </section>
+      </div>
+    }
+
+    <!-- ── Group: Existing users ────────────────────────────────────────── -->
+    <div class="settings-group">
+      <h2 class="group-title color-purple">
+        <span class="material-symbols-outlined">group</span>
+        {{ 'common.users' | translate }}
+        <span class="user-count">{{users.length}}</span>
+      </h2>
+
+      <section class="settings-section users-section">
+        <div class="user-list">
+          @for (user of users; track user.id) {
+            <div class="user-row" [class.disabled-user]="user.enabled === false">
+              <div class="user-info">
+                <div class="user-name-row">
+                  <strong>{{(user.displayName) || (user.username)}}</strong>
+                  <span class="role-pill" [class.role-admin]="user.role === 'admin'">{{user.role}}</span>
+                  @if (user.totpEnabled) {
+                    <span class="mfa-badge" [attr.title]="'user_management.2fa_enabled' | translate">
+                      <span class="material-symbols-outlined" style="font-size: 14px;">shield_lock</span>
+                    </span>
+                  }
+                  @if (user.enabled === false) {
+                    <span class="pending-badge">{{ 'user_management.pending_approval' | translate }}</span>
+                  }
+
+                </div>
+                <span class="user-handle">{{user.username}}</span>
+                @if (user.email) {
+                  <span class="user-email">{{user.email}}</span>
+                }
+              </div>
+              <div class="user-actions">
+                @if (user.enabled === false && auth.currentUser?.id !== user.id) {
+                  <button type="button" class="btn-approve" (click)="toggleUserEnabled(user)">{{ 'user_management.approve' | translate }}</button>
+                } @else if (user.enabled !== false && auth.currentUser?.id !== user.id) {
+                  <button type="button" class="btn-secondary" (click)="toggleUserEnabled(user)">{{ 'user_management.disable' | translate }}</button>
+                }
+                <button type="button" class="btn-secondary" (click)="openResetPassword(user.id!)">
+                  {{(resetPasswordUserId === user.id) ? ('common.cancel' | translate) : ('navbar.reset_password' | translate)}}
+                </button>
+                @if (user.totpEnabled) {
+                  <button type="button" class="btn-warning-link" (click)="disableUser2fa(user.id!)">
+                    {{ 'user_management.disable_2fa' | translate }}
+                  </button>
+                }
+
+                <button type="button" class="btn-danger" (click)="confirmDeleteUser(user)" [disabled]="auth.currentUser?.id === user.id">
+                  {{ 'common.delete' | translate }}
+                </button>
+              </div>
+
+              @if (confirmDeleteUserId === user.id) {
+                <div class="delete-confirmation-inline">
+                  <div class="confirmation-text">{{ 'user_management.are_you_sure_you_want_to_delete' | translate }} <strong>{{user.username}}</strong>{{ 'user_management.this_cannot_be_undone' | translate }}</div>
+                  <div class="confirmation-actions">
+                    <button type="button" class="btn-danger" (click)="deleteUser(user)">{{ 'user_management.confirm_delete' | translate }}</button>
+                    <button type="button" class="btn-secondary" (click)="cancelDeleteUser()">{{ 'common.cancel' | translate }}</button>
+                  </div>
+                </div>
+              }
+
+              @if (resetPasswordUserId === user.id) {
+                <div class="reset-pw-inline">
+                  <input type="password" [(ngModel)]="resetPasswordValue" [attr.placeholder]="'user_management.new_password_min_8_chars' | translate" autocomplete="new-password">
+                  <button type="button" [disabled]="isResettingPassword || !resetPasswordValue" (click)="submitResetPassword(user.id!)">
+                    {{(isResettingPassword) ? ('user_management.resetting' | translate) : ('user_management.set_new_password' | translate)}}
+                  </button>
+                  @if (resetPasswordError) {
+                    <div class="pw-inline-feedback error">{{(resetPasswordError) | uiText}}</div>
+                  }
+                  @if (resetPasswordSuccess) {
+                    <div class="pw-inline-feedback success">{{(resetPasswordSuccess) | uiText}}</div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    </div>
+
+    @if (managedHosting?.managed) {
+      <!-- ── Group: Managed hosting ─────────────────────────────────────── -->
+      <div class="settings-group">
+        <h2 class="group-title color-orange">
+          <span class="material-symbols-outlined">cloud</span>
+          {{ 'settings.managed_hosting' | translate }}
+        </h2>
+        <section class="settings-section about-section">
+          <div class="about-row">
+            <div class="about-label">{{ 'user_management.hosted_by' | translate }}</div>
+            <div class="about-value">{{(managedHosting?.providerName) || ('user_management.a_managed_hosting_provider' | translate)}}</div>
+          </div>
+          @if (managedHosting?.accountUrl) {
+            <div class="about-row">
+              <div class="about-label">{{ 'user_management.account_billing' | translate }}</div>
+              <div class="about-value">
+                <a [href]="managedHosting?.accountUrl" target="_blank" rel="noopener">{{ 'user_management.manage_subscription' | translate }}</a>
+              </div>
+            </div>
+          }
+          @if (managedHosting?.quotaBytes) {
+            <div class="about-row">
+              <div class="about-label">{{ 'user_management.storage' | translate }}</div>
+              <div class="about-value">{{ 'user_management.value0_included' | translate: { value0: (formatSize(managedHosting?.quotaBytes!)) } }}</div>
+            </div>
+          }
+        </section>
+      </div>
+    }
+
+    @if (!managedHosting?.externalBackups) {
+    <!-- ── Group: Automated Backups ────────────────────────────────────── -->
+    <div class="settings-group">
+      <h2 class="group-title color-orange">
+        <span class="material-symbols-outlined">schedule_send</span>
+        {{ 'user_management.automated_scheduled_backups' | translate }}
+      </h2>
+
+      <section class="settings-section backup-section">
+        <div class="section-title">{{ 'user_management.recurrence_and_time' | translate }}</div>
+        @if (automatedBackupError) { <div class="error global-msg" style="margin-bottom: 16px;">{{(automatedBackupError) | uiText}}</div> }
+        @if (automatedBackupSuccess) { <div class="success global-msg" style="margin-bottom: 16px;">{{(automatedBackupSuccess) | uiText}}</div> }
+        <p class="section-desc">
+
+
+          {{ 'user_management.configure_kept_to_automatically_snapshot_your_database_backups_ar' | translate }} <code class="path-code">{{absolutePath}}</code>
+        </p>
+
+        <div class="backup-controls scheduled-controls">
+          <div class="backup-config">
+            <label>
+              <span>{{ 'user_management.automated_schedule' | translate }}</span>
+              <select [(ngModel)]="backupSchedule" (change)="changeBackupSchedule(backupSchedule)">
+                <option value="none">{{ 'common.disabled' | translate }}</option>
+                <option value="daily">{{ 'common.daily' | translate }}</option>
+                <option value="weekly">{{ 'common.weekly' | translate }}</option>
+                <option value="monthly">{{ 'common.monthly' | translate }}</option>
+              </select>
+            </label>
+          </div>
+
+          @if (backupSchedule !== 'none') {
+            <div class="backup-config time-picker-container">
+              <label>
+                <span>{{ 'user_management.schedule_settings' | translate }}</span>
+                <div class="timepicker-input-group" (click)="openBackupTimePicker()">
+                  <input type="text" id="backupTimeInput" class="timepicker-ui-input" [value]="backupTime" readonly>
+                  <span class="material-symbols-outlined clock-icon">schedule</span>
+                </div>
+              </label>
+            </div>
+          }
+
+        </div>
+
+        @if (lastAutomatedAt) {
+          <div class="last-backup-hint">
+            <strong>{{ 'user_management.last_automated_backup' | translate }}</strong> {{lastAutomatedAt | uiDate:'medium'}}
+          </div>
+        }
+
+      </section>
+
+      <section class="settings-section backup-section retention-section">
+        <div class="section-title">{{ 'user_management.backup_retention' | translate }}</div>
+        @if (retentionError) { <div class="error global-msg" style="margin-bottom: 16px;">{{(retentionError) | uiText}}</div> }
+        @if (retentionSuccess) { <div class="success global-msg" style="margin-bottom: 16px;">{{(retentionSuccess) | uiText}}</div> }
+        <p class="section-desc">{{ 'user_management.backup_retention_description' | translate }}</p>
+
+        <div class="backup-controls retention-controls">
+          <div class="backup-config">
+            <label>
+              <span>{{ 'user_management.keep' | translate }}</span>
+              <select [(ngModel)]="retention.mode" (ngModelChange)="retentionSuccess = ''">
+                <option value="all">{{ 'user_management.retention_keep_all' | translate }}</option>
+                <option value="count">{{ 'user_management.retention_keep_newest' | translate }}</option>
+                <option value="age">{{ 'user_management.retention_delete_older' | translate }}</option>
+                <option value="smart">{{ 'user_management.retention_smart' | translate }}</option>
+              </select>
+            </label>
+          </div>
+
+          @if (retention.mode === 'count') {
+            <div class="backup-config retention-number">
+              <label>
+                <span>{{ 'user_management.retention_number_of_backups' | translate }}</span>
+                <input type="number" min="1" max="1000" step="1" [(ngModel)]="retention.keepLast">
+              </label>
+            </div>
+          }
+          @if (retention.mode === 'age') {
+            <div class="backup-config retention-number">
+              <label>
+                <span>{{ 'user_management.retention_days' | translate }}</span>
+                <input type="number" min="1" max="3650" step="1" [(ngModel)]="retention.maxAgeDays">
+              </label>
+            </div>
+          }
+          @if (retention.mode === 'smart') {
+            <div class="retention-smart">
+              <label><span>{{ 'common.daily' | translate }}</span><input type="number" min="0" max="366" step="1" [(ngModel)]="retention.daily"></label>
+              <label><span>{{ 'common.weekly' | translate }}</span><input type="number" min="0" max="520" step="1" [(ngModel)]="retention.weekly"></label>
+              <label><span>{{ 'common.monthly' | translate }}</span><input type="number" min="0" max="240" step="1" [(ngModel)]="retention.monthly"></label>
+              <label><span>{{ 'user_management.yearly' | translate }}</span><input type="number" min="0" max="100" step="1" [(ngModel)]="retention.yearly"></label>
+            </div>
+          }
+
+          @if (retention.mode !== 'all') {
+            <label class="reg-toggle retention-include-manual">
+              <input type="checkbox" [(ngModel)]="retention.includeManual">
+              <div>
+                <strong>{{ 'user_management.retention_include_manual' | translate }}</strong>
+                <small>{{ 'user_management.retention_include_manual_hint' | translate }}</small>
+              </div>
+            </label>
+          }
+
+          <button type="button" class="btn-primary" (click)="saveBackupRetention()" [disabled]="isSavingRetention">
+            {{ 'common.save' | translate }}
+          </button>
+        </div>
+        <p class="last-backup-hint">{{ retentionSummary() }}</p>
+      </section>
+    </div>
+
+    } @else {
+      <div class="settings-group">
+        <h2 class="group-title color-orange">
+          <span class="material-symbols-outlined">backup</span>
+          {{ 'user_management.backups' | translate }}
+        </h2>
+        <section class="settings-section">
+          <p class="section-desc">
+            {{ 'user_management.backups_are_handled_automatically_by_value0_there_s_nothing_to_co' | translate: { value0: ((managedHosting?.providerName) || ('settings.your_hosting_provider' | translate)) } }}
+          </p>
+        </section>
+      </div>
+    }
+
+    <!-- ── Group: Manual Backup ─────────────────────────────────────────── -->
+    <div class="settings-group" id="full-server-backup">
+      <h2 class="group-title color-orange">
+        <span class="material-symbols-outlined">backup</span>
+        {{ 'user_management.full_server_backup' | translate }}
+      </h2>
+
+      <section class="settings-section backup-section">
+        <div class="section-title">{{ 'user_management.download_a_full_backup' | translate }}</div>
+        @if (manualBackupError) { <div class="error global-msg" style="margin-bottom: 16px;">{{(manualBackupError) | uiText}}</div> }
+        @if (manualBackupSuccess) { <div class="success global-msg" style="margin-bottom: 16px;">{{(manualBackupSuccess) | uiText}}</div> }
+        <p class="section-desc">
+
+
+          {{ 'user_management.download_all_accounts_notes_settings_images_and_attachments_in_on' | translate }}
+        </p>
+
+        <div class="backup-controls manual-controls">
+          <button type="button" class="btn-primary" (click)="runBackupNow()" [disabled]="isBackingUp">
+            {{(isBackingUp) ? ('user_management.preparing_backup' | translate) : ('user_management.download_a_full_backup' | translate)}}
+          </button>
+        </div>
+
+        @if (lastManualAt) {
+          <div class="last-backup-hint">
+            <strong>{{ 'user_management.last_manual_backup' | translate }}</strong> {{lastManualAt | uiDate:'medium'}}
+          </div>
+        }
+
+
+        @if (backupFiles.length > 0) {
+          <div class="backup-list">
+            <h3>{{ 'user_management.recent_backups' | translate }}</h3>
+            @for (file of backupFiles; track file.filename) {
+              <div class="backup-row">
+                <div class="file-info">
+                  <span class="filename">{{file.filename}}</span>
+                  <span class="file-meta">{{formatSize(file.size)}} • {{file.createdAt | uiDate:'medium'}}</span>
+                </div>
+                <div class="file-actions">
+                  <button type="button" class="btn-secondary" (click)="downloadBackup(file.filename, file.size)">{{ 'common.download' | translate }}</button>
+                  <button type="button" class="btn-danger-link" (click)="deleteBackup(file.filename)">{{ 'common.delete' | translate }}</button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    </div>
+
+    <!-- ── Group: About ───────────────────────────────────────────────── -->
+    <div class="settings-group">
+      <h2 class="group-title color-grey">
+        <span class="material-symbols-outlined">info</span>
+        {{ 'user_management.about' | translate }}
+      </h2>
+
+      <section class="settings-section about-section">
+        <div class="about-row">
+          <div class="about-label">{{ 'user_management.kept_version' | translate }}</div>
+          <div class="about-value">
+            <code>{{(versionInfo?.current) || ('—')}}</code>
+            @if (managedHosting?.managed) {
+              <span class="version-tag uptodate">{{ 'user_management.updated_automatically_by_value0' | translate: { value0: ((managedHosting?.providerName) || ('settings.your_hosting_provider' | translate)) } }}</span>
+            } @else if (versionInfo?.isOutdated && versionInfo?.latest) {
+              <span class="version-tag outdated">{{ 'user_management.update_available' | translate }} <code>{{versionInfo?.latest}}</code></span>
+            } @else if (versionInfo?.latest && !versionInfo?.isOutdated) {
+              <span class="version-tag uptodate">{{ 'user_management.up_to_date' | translate }}</span>
+            }
+          </div>
+        </div>
+        @if (!managedHosting?.managed && versionInfo?.releaseUrl) {
+          <div class="about-row">
+            <div class="about-label">{{ 'user_management.latest_release' | translate }}</div>
+            <div class="about-value">
+              <a [href]="versionInfo?.releaseUrl" target="_blank" rel="noopener">{{ 'user_management.view_on_github' | translate }}</a>
+            </div>
+          </div>
+        }
+        @if (versionInfo?.checkedAt) {
+          <div class="about-row">
+            <div class="about-label">{{ 'user_management.last_checked' | translate }}</div>
+            <div class="about-value about-muted">{{versionInfo?.checkedAt | uiDate:'medium'}}</div>
+          </div>
+        }
+        @if (versionInfo?.checkError) {
+          <div class="about-row">
+            <div class="about-label">{{ 'user_management.check_error' | translate }}</div>
+            <div class="about-value about-muted">{{(versionInfo?.checkError) | uiText}}</div>
+          </div>
+        }
+      </section>
+    </div>
+
+
+  </section>
+</main>

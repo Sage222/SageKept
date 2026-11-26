@@ -1,0 +1,697 @@
+import { uiText } from 'src/app/i18n/messages';
+import { parseDateSearch } from '../../../../shared/note-search-date';
+import { Component, ElementRef, HostBinding, HostListener, OnInit, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from 'src/app/services/auth.service';
+import { SharedService } from 'src/app/services/shared.service';
+import { bgColors, bgImages } from 'src/app/interfaces/tooltip';
+import { LabelI } from 'src/app/interfaces/labels';
+import { NoteI } from 'src/app/interfaces/notes';
+import { OfflineSyncService } from 'src/app/services/offline-sync.service';
+import { describeSyncStatus } from 'src/app/utils/sync-status';
+import { UserPreferencesService } from 'src/app/services/user-preferences.service';
+
+
+@Component({
+    selector: 'app-navbar',
+    templateUrl: './navbar.component.html',
+    styleUrls: ['./navbar.component.scss'],
+    standalone: false
+})
+export class NavbarComponent implements OnInit {
+  logoClickCount = 0;
+  logoClickTimer?: any;
+  eggDismissTimer?: any;
+  showEasterEgg = false;
+  eggIndex = 0;
+  easterEggMessages = [
+    "SageKept: because, unlike your last relationship, these notes are actually worth holding onto 💅",
+    "I added checkboxes so you can mark off all the tasks you won't do.",
+    "SageKept: Because why use the trillion-dollar company's version when you can run this on your own bare metal, bay-bee!",
+    "SageKept: Why use the original when you can use the version that was built entirely on caffeine and spite? 🔥",
+    "I know, I know. I look familiar. I get that a lot."
+  ];
+
+  readonly inbuiltAvatarIcons = [
+    { id: 'sage-leaf', label: 'Sage Leaf', src: './assets/images/avatars/avatar-sage-leaf.svg' },
+    { id: 'mountain', label: 'Mountain Peak', src: './assets/images/avatars/avatar-mountain.svg' },
+    { id: 'owl', label: 'Wise Owl', src: './assets/images/avatars/avatar-owl.svg' },
+    { id: 'astronaut', label: 'Explorer', src: './assets/images/avatars/avatar-astronaut.svg' },
+    { id: 'compass', label: 'Compass', src: './assets/images/avatars/avatar-compass.svg' }
+  ];
+
+  konamiCode = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a', 'Enter'];
+  wasdCode = ['w', 'w', 's', 's', 'a', 'd', 'a', 'd', 'b', 'a', 'Enter'];
+  konamiIndex = 0;
+  wasdIndex = 0;
+
+  constructor(public Shared: SharedService, public auth: AuthService, private router: Router, private cdr: ChangeDetectorRef,
+    public offlineSync: OfflineSyncService, public preferences: UserPreferencesService) { }
+
+  @ViewChild("form23zSaZ") form23zSaZ?: ElementRef<HTMLDivElement>
+  @ViewChild("searchInput") searchInput?: ElementRef<HTMLInputElement>
+  @ViewChild("filtersContainer") filtersContainer?: ElementRef<HTMLElement>
+  @ViewChild('accountMenuButton') accountMenuButton?: ElementRef<HTMLButtonElement>
+  @ViewChild('displayNameInput') displayNameInput?: ElementRef<HTMLInputElement>
+  @HostBinding('class.scrolled') isScrolled = false
+  isProfileOpen = false
+  isEditingProfile = false
+  manualSyncing = false
+  profileError = ''
+  labelMenuError = ''
+  binderMenuError = ''
+  avatarPreview = ''
+  avatarPresetPreview = 'sage-leaf'
+  newPassword = ''
+  confirmNewPassword = ''
+  currentPassword = ''
+  passwordResetError = ''
+  passwordResetSuccess = ''
+  isResettingPassword = false
+  showPasswordReset = false
+  isFiltersOpen = false
+  readonly dateFilterExamples = ['today', 'november', '2025']
+  private selectionMoreButton?: HTMLElement
+
+  get selectedCount() {
+    return this.Shared.selectedNoteIds.value.length
+  }
+
+  get canSetSelectedReminder() {
+    return this.selectedCount === 1
+  }
+
+  get isTrashRoute() {
+    return this.router.url.split('?')[0].split('#')[0] === '/trash'
+  }
+
+  deleteSelected() {
+    if (this.isTrashRoute) this.Shared.deleteSelectedForever.next()
+    else this.Shared.bulkTrashSelected()
+  }
+
+  get isBinderRoute() {
+    return this.router.url.split('?')[0].split('#')[0].startsWith('/binder/')
+  }
+
+  setSearchScope(scope: 'all' | 'current') {
+    this.Shared.setSearchScope(scope)
+  }
+
+  closeSideBar() { this.Shared.closeSideBar.next(true) }
+
+  view() {
+    this.Shared.toggleNoteViewType()
+  }
+
+  searchExpanded = false
+
+  updateSearch(event: Event) {
+    this.Shared.setSearchQuery((event.target as HTMLInputElement).value)
+  }
+
+  clearSearch() {
+    this.Shared.setSearchQuery('')
+  }
+
+  onSearchFocus() {
+    // Mobile-only expansion. The CSS gates this on a media query so
+    // adding the class on desktop is a no-op.
+    this.searchExpanded = !this.isFiltersOpen
+  }
+
+  onSearchBlur() {
+    this.searchExpanded = false
+  }
+
+  onSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      this.searchInput?.nativeElement.blur()
+    }
+  }
+
+  applyFilter(filter: string) {
+    const current = this.Shared.searchQuery.trim()
+    if (current.includes(filter)) return
+    const next = current ? `${current} ${filter}` : filter
+    this.Shared.setSearchQuery(next)
+    if (this.searchInput) {
+      this.searchInput.nativeElement.value = next
+      this.searchInput.nativeElement.blur()
+    }
+  }
+
+  get activeFilters() {
+    const query = parseDateSearch(this.Shared.searchQuery).text
+    const tokens = query.trim().split(/\s+/).filter(Boolean)
+    const filters: { label: string, code: string }[] = []
+    for (const t of tokens) {
+      if (/^!i(?:m(?:a(?:g(?:e)?)?)?)?$/.test(t)) filters.push({ label: 'Images', code: t })
+      else if (/^!t(?:o(?:d(?:o)?)?)?$/.test(t)) filters.push({ label: 'Checkboxes', code: t })
+      else if (/^!d(?:r(?:a(?:w(?:ing)?)?)?)?$/.test(t)) filters.push({ label: 'Drawings', code: t })
+      else if (/^!url?$/.test(t)) filters.push({ label: 'Links', code: t })
+      else if (/^!a(?:t(?:t(?:a(?:c(?:h(?:m(?:e(?:n(?:t)?)?)?)?)?)?)?)?)?$/.test(t)) filters.push({ label: 'Attachments', code: t })
+      else if (/^!label:[a-z0-9_-]+$/.test(t)) filters.push({ label: `Label: ${t.replace(/^!label:/, '')}`, code: t })
+      else if (/^!l(?:a(?:b(?:e(?:l(?::[a-z0-9_-]+)?)?)?)?)?$/.test(t)) filters.push({ label: 'Any Label', code: t })
+    }
+    return filters
+  }
+
+  get activeLabelFilters() {
+    return this.activeFilters.filter(filter => filter.code.startsWith('!label:'))
+  }
+
+  toggleFilters(event?: Event) {
+    if (event) event.stopPropagation()
+    this.searchExpanded = false
+    this.searchInput?.nativeElement.blur()
+    this.isFiltersOpen = !this.isFiltersOpen
+  }
+
+  get hasDateFilter() {
+    return parseDateSearch(this.Shared.searchQuery).filters.length > 0
+  }
+
+  toggleDateFilter() {
+    if (this.hasDateFilter) this.clearDateFilter()
+    else this.Shared.setSearchQuery(`${this.Shared.searchQuery.trim()} !date `.trimStart())
+    this.focusDateSearch()
+  }
+
+  applyDateFilter(value: string) {
+    const base = parseDateSearch(this.Shared.searchQuery).text
+    const candidate = parseDateSearch(`!date ${value.trim()}`)
+    if (candidate.invalid || !candidate.range || candidate.filters.length !== 1 || candidate.text.trim()) return
+    this.Shared.setSearchQuery(`${base} ${candidate.filters[0].code}`.trim())
+    this.focusDateSearch()
+  }
+
+  isDateExampleActive(value: string) {
+    return parseDateSearch(this.Shared.searchQuery).filters.some(filter => filter.valid && filter.value.toLowerCase() === value)
+  }
+
+  clearDateFilter() {
+    this.Shared.setSearchQuery(parseDateSearch(this.Shared.searchQuery).text)
+  }
+
+  private focusDateSearch() {
+    const input = this.searchInput?.nativeElement
+    if (!input) return
+    input.value = this.Shared.searchQuery
+    input.focus()
+    input.setSelectionRange(input.value.length, input.value.length)
+  }
+
+  removeFilter(code: string) {
+    const escaped = this.escapeRegExp(code)
+    const regex = new RegExp(`(^|\\s)${escaped}(\\s|$)`, 'g')
+    const next = this.Shared.searchQuery.replace(regex, ' ').replace(/\s+/g, ' ').trim()
+    this.Shared.setSearchQuery(next)
+  }
+
+  clearAllFilters() {
+    const current = parseDateSearch(this.Shared.searchQuery).text
+    const next = current.split(/\s+/).filter(t => !t.startsWith('!')).join(' ').trim()
+    this.Shared.setSearchQuery(next)
+    this.isFiltersOpen = false
+  }
+
+  toggleFilter(code: string) {
+    if (this.isFilterActive(code)) {
+      this.removeFilter(code)
+    } else {
+      this.applyFilter(code)
+    }
+  }
+
+  isFilterActive(code: string) {
+    const tokens = this.Shared.searchQuery.trim().split(/\s+/).filter(Boolean)
+    // For labels, we need to handle the slug part specifically or just exact match
+    if (code.startsWith('!label:')) {
+      return tokens.some(t => t === code)
+    }
+    // For simple operators, we check if the token starts with it (to handle partials like !i for !image)
+    // but better to match exactly the operator logic from the pipe.
+    // For simplicity here, let's match exact tokens or the common forms.
+    return tokens.includes(code)
+  }
+
+  private escapeRegExp(string: string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  openTooltip(button: HTMLElement, tooltipEl: HTMLDivElement) {
+    this.Shared.createTooltip(button, tooltipEl)
+  }
+
+  openSelectionMore(button: HTMLElement, tooltipEl: HTMLDivElement, labelTooltipEl: HTMLDivElement, binderTooltipEl: HTMLDivElement) {
+    this.Shared.closeTooltip(labelTooltipEl)
+    this.Shared.closeTooltip(binderTooltipEl)
+    this.selectionMoreButton = button
+    if (tooltipEl.dataset['isTooltipOpen'] === 'true') {
+      this.Shared.closeTooltip(tooltipEl)
+      return
+    }
+    this.Shared.createTooltip(button, tooltipEl, 'bottom-end')
+  }
+
+  get selectionAppearance() {
+    const notes = this.Shared.note.all.filter(note => note.id && this.Shared.selectedNoteIds.value.includes(note.id));
+    const first = notes[0];
+    return { bgColor: notes.every(note => note.bgColor === first?.bgColor) ? first?.bgColor || '' : '',
+      bgImage: notes.every(note => note.bgImage === first?.bgImage) ? first?.bgImage || '' : '',
+      pattern: notes.every(note => note.pattern === first?.pattern) ? first?.pattern || null : null };
+  }
+
+  selectionColorMenu = {
+    pattern: (id: string | null) => this.Shared.bulkUpdateSelected({ pattern: id, ...(id ? { bgImage: '' } : {}) }),
+    bgColor: (data: bgColors) => this.Shared.bulkUpdateSelected({ bgColor: data }),
+    bgImage: (data: bgImages) => this.Shared.bulkUpdateSelected({ bgImage: data ? `url(${data})` : '', ...(data ? { pattern: null } : {}) })
+  }
+
+  openSelectedReminder() {
+    if (!this.canSetSelectedReminder) return
+    this.Shared.openSelectedReminder.next()
+  }
+
+  selectionMoreMenu(tooltipEl: HTMLDivElement) {
+    const actions = {
+      selectAll: () => {
+        this.Shared.closeTooltip(tooltipEl)
+        this.Shared.selectAllNotes.next()
+      },
+      trash: () => this.deleteSelected(),
+      clone: () => this.Shared.bulkCloneSelected(),
+      openLabelMenu: (labelTooltipEl: HTMLDivElement) => {
+        this.Shared.closeTooltip(tooltipEl)
+        this.labelMenuError = ''
+        this.Shared.createTooltip(this.selectionMoreButton!, labelTooltipEl)
+      },
+      openBinderMenu: (binderTooltipEl: HTMLDivElement, labelTooltipEl?: HTMLDivElement) => {
+        this.Shared.closeTooltip(tooltipEl)
+        if (labelTooltipEl) this.Shared.closeTooltip(labelTooltipEl)
+        this.binderMenuError = ''
+        this.Shared.createTooltip(this.selectionMoreButton!, binderTooltipEl)
+      },
+      openMerge: () => {
+        this.Shared.closeTooltip(tooltipEl)
+        this.openMergeDialog()
+      }
+    }
+    return actions
+  }
+
+  get selectionHasSharedBinder() {
+    return this.Shared.note.all.some(note=>note.id && this.Shared.selectedNoteIds.value.includes(note.id) && note.sharedBinder);
+  }
+  get canAddSelectionToSharedBinder() {
+    const selected=this.Shared.note.all.filter(note=>note.id && this.Shared.selectedNoteIds.value.includes(note.id));
+    return !!selected.length && selected.every(note=>!note.ownerUserId || note.ownerUserId===this.auth.currentUser?.id);
+  }
+
+  async setSelectionSharedBinder(binder: {id:number;name:string;ownerUserId?:number;ownerDisplayName?:string;ownerUsername?:string} | null,tooltipEl: HTMLDivElement) {
+    const selected=this.Shared.note.all.filter(note=>note.id && this.Shared.selectedNoteIds.value.includes(note.id));
+    for (const note of selected) {
+      if (binder && note.ownerUserId && note.ownerUserId!==this.auth.currentUser?.id) continue;
+      if (!binder && !note.sharedBinder) continue;
+      await this.Shared.note.db.moveBinder(note.id!,{binderId:binder?.id || null,binder:binder?.name || '',sharedBinder:binder ? {
+        id:binder.id,name:binder.name,ownerUserId:binder.ownerUserId!,ownerDisplayName:binder.ownerDisplayName || '',ownerUsername:binder.ownerUsername || ''
+      } : undefined});
+    }
+    this.Shared.clearNoteSelection();this.Shared.closeTooltip(tooltipEl);
+  }
+
+  async setSelectionBinder(name: string, tooltipEl?: HTMLDivElement) {
+    await this.Shared.bulkApplyBinder(name)
+    this.Shared.clearNoteSelection()
+    if (tooltipEl) this.Shared.closeTooltip(tooltipEl)
+  }
+
+  async addBinderFromMenu(input: HTMLInputElement) {
+    const name = input.value.trim()
+    if (!name) return
+    try {
+      await this.Shared.binder.db.add(name)
+      await this.Shared.bulkApplyBinder(name)
+      input.value = ''
+      this.binderMenuError = ''
+    } catch {
+      this.binderMenuError = uiText('binders.could_not_create_binder')
+    }
+  }
+
+  isSelectedBinder(name: string) {
+    const selected = this.Shared.note.all.filter(note => note.id && this.Shared.selectedNoteIds.value.includes(note.id))
+    return !!selected.length && selected.every(note => (note.binder || '') === (name || ''))
+  }
+
+  // Merge dialog state. Snapshots the visible-grid order of currently
+  // selected notes so the user can drag to reorder before confirming.
+  isMergeDialogOpen = false
+  mergeDialogNotes: NoteI[] = []
+  mergeError = ''
+
+  openMergeDialog() {
+    const ids = this.Shared.selectedNoteIds.value
+    if (ids.length < 2) return
+    // Use the visible-grid order: pinned first (in `pinned`), then `unpinned`.
+    const indexFor = (id: number) => {
+      const pinIdx = this.Shared.note.pinned.findIndex(n => n.id === id)
+      if (pinIdx >= 0) return pinIdx
+      const unIdx = this.Shared.note.unpinned.findIndex(n => n.id === id)
+      return unIdx >= 0 ? this.Shared.note.pinned.length + unIdx : Number.MAX_SAFE_INTEGER
+    }
+    const ordered = ids
+      .map(id => this.Shared.note.all.find(n => n.id === id))
+      .filter((n): n is NoteI => !!n)
+      .sort((a, b) => indexFor(a.id!) - indexFor(b.id!))
+    this.mergeDialogNotes = ordered
+    this.mergeError = ''
+    this.isMergeDialogOpen = true
+  }
+
+  closeMergeDialog() {
+    this.isMergeDialogOpen = false
+    this.mergeDialogNotes = []
+    this.mergeError = ''
+  }
+
+  async confirmMerge(orderedIds: number[]) {
+    try {
+      await this.Shared.bulkMergeSelected(orderedIds)
+      this.closeMergeDialog()
+    } catch (e: any) {
+      this.mergeError = e?.error?.error || 'Could not merge notes.'
+      this.isMergeDialogOpen = false
+    }
+  }
+
+  labelMenu(label: LabelI) {
+    this.Shared.bulkApplyLabel(label)
+  }
+
+  async addLabelFromMenu(input: HTMLInputElement) {
+    const name = input.value.trim()
+    if (!name) return
+
+    const existing = this.Shared.label.list.find(label => label.name.toLowerCase() === name.toLowerCase())
+    if (existing) {
+      await this.Shared.bulkApplyLabel(existing)
+      input.value = ''
+      this.labelMenuError = ''
+      return
+    }
+
+    try {
+      const id = await this.Shared.label.db.add({ name })
+      await this.Shared.bulkApplyLabel({ id, name, added: true })
+      input.value = ''
+      this.labelMenuError = ''
+    } catch (error: any) {
+      const matchingLabel = this.Shared.label.list.find(label => label.name.toLowerCase() === name.toLowerCase())
+      if (matchingLabel) {
+        await this.Shared.bulkApplyLabel(matchingLabel)
+        input.value = ''
+        this.labelMenuError = ''
+        return
+      }
+      this.labelMenuError = error?.status === 409 ? (uiText('labels.label_already_exists')) : (uiText('labels.could_not_create_label'))
+    }
+  }
+
+  isSelectedLabel(label: LabelI) {
+    const selected = this.Shared.note.all.filter(note => note.id && this.Shared.selectedNoteIds.value.includes(note.id))
+    return !!selected.length && selected.every(note => note.labels.some(noteLabel => noteLabel.id === label.id && noteLabel.added))
+  }
+
+  labelSlug(label: string) {
+    return label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s/:\-!]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+/g, '-')
+  }
+
+  toggleTheme() {
+    const nextTheme = this.auth.effectiveTheme === 'light' ? 'dark' : 'light'
+    this.auth.updateTheme(nextTheme)
+  }
+
+  async logout() {
+    try {
+      if (await this.auth.logout()) return
+    } catch (error) {
+      const text = error instanceof Error && error.name === 'KeptServerResetError' ? error.message : 'Connect to the server to sign out.'
+      ;(window as any).Snackbar?.show({ text, duration: 4000 })
+      return
+    }
+    this.router.navigateByUrl('/login')
+  }
+
+  openProfile() {
+    this.profileError = ''
+    this.avatarPreview = this.auth.currentUser?.avatarDataUrl || ''
+    this.avatarPresetPreview = this.auth.currentUser?.avatarPreset || 'sage-leaf'
+    this.isProfileOpen = true
+    this.isEditingProfile = false
+  }
+
+  toggleProfile(event: Event) {
+    event.stopPropagation()
+    if (this.isProfileOpen) {
+      this.closeProfile()
+    } else {
+      this.openProfile()
+    }
+  }
+
+  @HostListener('document:click')
+  onDocumentClick() {
+    if (this.isProfileOpen) {
+      this.closeProfile()
+    }
+  }
+
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: PointerEvent) {
+    if (!this.isFiltersOpen) return
+    const target = event.target as Node | null
+    if (!target || !this.filtersContainer?.nativeElement.contains(target)) {
+      this.isFiltersOpen = false
+    }
+  }
+
+  closeProfile() {
+    this.isProfileOpen = false
+    this.isEditingProfile = false
+    this.showPasswordReset = false
+    this.currentPassword = ''
+    this.newPassword = ''
+    this.confirmNewPassword = ''
+  }
+
+  @HostListener('document:keydown.escape')
+  closeAccountOnEscape() {
+    const wasOpen = this.isProfileOpen;
+    this.closeProfile();
+    if (wasOpen) this.accountMenuButton?.nativeElement.focus();
+  }
+
+  editProfile() {
+    this.isEditingProfile = true;
+    this.cdr.detectChanges();
+    this.displayNameInput?.nativeElement.focus();
+  }
+
+  syncStatus(state = this.offlineSync.state$.value, pending = this.offlineSync.pendingCount$.value,
+    lastSyncedAt = this.offlineSync.lastSyncedAt$.value, storageBlocked = this.offlineSync.storageBlocked$.value) {
+    return describeSyncStatus(state, pending, lastSyncedAt, storageBlocked, this.manualSyncing);
+  }
+
+  async syncAccount() {
+    if (this.manualSyncing || this.offlineSync.state$.value === 'syncing') return;
+    this.manualSyncing = true;
+    try { await this.offlineSync.syncNow({ recovery: true, bootstrapIfEmpty: true }); }
+    finally { this.manualSyncing = false; }
+  }
+
+  uploadAvatar(event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
+    this.profileError = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      this.profileError = uiText('navbar.please_choose_an_image_file')
+      return
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 512;
+        const MAX_HEIGHT = 512;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+          const quality = mimeType === 'image/jpeg' ? 0.85 : undefined;
+          this.avatarPreview = canvas.toDataURL(mimeType, quality);
+        } else {
+          this.avatarPreview = String(reader.result || '');
+        }
+        this.cdr.detectChanges();
+      };
+      img.src = String(e.target?.result || '');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  selectInbuiltAvatar(presetId: string) {
+    this.avatarPreview = '';
+    this.avatarPresetPreview = presetId;
+  }
+
+  clearAvatar() {
+    this.avatarPreview = ''
+    const presets = this.inbuiltAvatarIcons.map(icon => icon.id);
+    const otherPresets = presets.filter(p => p !== this.avatarPresetPreview);
+    this.avatarPresetPreview = otherPresets[Math.floor(Math.random() * otherPresets.length)] || 'sage-leaf';
+  }
+
+  openAdvancedSettings() {
+    this.closeProfile()
+    this.router.navigateByUrl('/settings')
+  }
+
+  async saveProfile(displayName: string) {
+    try {
+      await this.auth.updateProfile(displayName, this.avatarPreview, this.avatarPresetPreview)
+      this.closeProfile()
+    } catch (error: any) {
+      this.profileError = error?.error?.error || 'Could not save profile.'
+    }
+  }
+
+  togglePasswordReset() {
+    this.showPasswordReset = !this.showPasswordReset
+    this.currentPassword = ''
+    this.newPassword = ''
+    this.confirmNewPassword = ''
+    this.passwordResetError = ''
+    this.passwordResetSuccess = ''
+  }
+
+  async resetMyPassword() {
+    this.passwordResetError = ''
+    this.passwordResetSuccess = ''
+    if (this.newPassword.length < 8) {
+      this.passwordResetError = uiText('navbar.new_password_must_be_at_least_8_characters')
+      return
+    }
+    if (this.newPassword !== this.confirmNewPassword) {
+      this.passwordResetError = uiText('auth.passwords_do_not_match')
+      return
+    }
+    this.isResettingPassword = true
+    try {
+      await this.auth.resetOwnPassword(this.currentPassword, this.newPassword)
+      this.passwordResetSuccess = uiText('navbar.password_updated_successfully')
+      this.currentPassword = ''
+      this.newPassword = ''
+      this.confirmNewPassword = ''
+    } catch (error: any) {
+      this.passwordResetError = error?.error?.error || 'Could not reset password.'
+    } finally {
+      this.isResettingPassword = false
+    }
+  }
+
+  onLogoClick(event: Event) {
+    // Only on desktop
+    if (window.innerWidth < 600) return;
+
+    this.logoClickCount++;
+    if (this.logoClickTimer) clearTimeout(this.logoClickTimer);
+
+    if (this.logoClickCount >= 5) {
+      this.logoClickCount = 0;
+      this.triggerEasterEgg();
+    } else {
+      this.logoClickTimer = setTimeout(() => {
+        this.logoClickCount = 0;
+      }, 1000);
+    }
+  }
+
+  triggerEasterEgg() {
+    if (this.showEasterEgg) {
+      // If already showing, skip to next and reset timer
+      if (this.eggDismissTimer) clearTimeout(this.eggDismissTimer);
+      this.eggIndex = (this.eggIndex + 1) % this.easterEggMessages.length;
+    } else {
+      this.showEasterEgg = true;
+    }
+
+    this.eggDismissTimer = setTimeout(() => {
+      this.showEasterEgg = false;
+      this.eggIndex = (this.eggIndex + 1) % this.easterEggMessages.length;
+      this.cdr.detectChanges();
+    }, 10000);
+    this.cdr.detectChanges();
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent) {
+    if (window.innerWidth < 600) return;
+
+    // Check Konami Code
+    if (event.key === this.konamiCode[this.konamiIndex]) {
+      this.konamiIndex++;
+      if (this.konamiIndex === this.konamiCode.length) {
+        this.triggerEasterEgg();
+        this.konamiIndex = 0;
+      }
+    } else {
+      this.konamiIndex = 0;
+      // Re-check first key in case they started the sequence again
+      if (event.key === this.konamiCode[0]) this.konamiIndex = 1;
+    }
+
+    // Check WASD variant
+    if (event.key === this.wasdCode[this.wasdIndex]) {
+      this.wasdIndex++;
+      if (this.wasdIndex === this.wasdCode.length) {
+        this.triggerEasterEgg();
+        this.wasdIndex = 0;
+      }
+    } else {
+      this.wasdIndex = 0;
+      if (event.key === this.wasdCode[0]) this.wasdIndex = 1;
+    }
+  }
+
+  ngOnInit(): void {
+  }
+
+  @HostListener('window:scroll')
+  onWindowScroll() {
+    this.isScrolled = window.scrollY > 0
+    if (this.isFiltersOpen) this.isFiltersOpen = false
+  }
+
+}
