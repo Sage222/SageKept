@@ -1,3 +1,7 @@
+:host {
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+}
+
 .sage-ctx-menu {
   position: fixed;
   z-index: 12000;
@@ -8,6 +12,7 @@
   border-radius: 14px;
   background: var(--ctx-bg, #282a2e);
   color: var(--ctx-ink, #e8eaed);
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
   border: 1px solid var(--ctx-border, rgba(255, 255, 255, 0.12));
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42), 0 4px 12px rgba(0, 0, 0, 0.24);
   padding: 6px;
@@ -40,9 +45,10 @@
   align-items: center;
   gap: 8px;
   padding: 7px 10px 6px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.72;
   border-bottom: 1px solid var(--ctx-border, rgba(255, 255, 255, 0.1));
@@ -79,9 +85,11 @@
   border: 0;
   background: transparent;
   color: inherit;
-  font-family: inherit;
-  font-size: 13.5px;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 0.875rem;
   font-weight: 500;
+  line-height: 1.25rem;
+  letter-spacing: 0;
   text-align: left;
   padding: 8px 10px;
   border-radius: 9px;
@@ -134,6 +142,7 @@
 }
 
 .sage-ctx-item-badge {
+  font-family: Roboto, Arial, sans-serif;
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 99px;
@@ -150,6 +159,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
 }
 
 .sage-ctx-dialog {
@@ -158,6 +168,7 @@
   border-radius: 16px;
   background: #282a2e;
   color: #e8eaed;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.45);
   padding: 18px 20px;
@@ -178,8 +189,9 @@
 
   h3 {
     margin: 0;
+    font-family: "Google Sans", Roboto, Arial, sans-serif;
     font-size: 17px;
-    font-weight: 600;
+    font-weight: 500;
   }
 }
 
@@ -201,6 +213,7 @@
 
 .sage-ctx-dialog-subtitle {
   margin: 6px 0 14px;
+  font-family: Roboto, Arial, sans-serif;
   font-size: 13px;
   opacity: 0.76;
   line-height: 1.45;
@@ -218,8 +231,9 @@
   gap: 6px;
 
   span {
+    font-family: "Google Sans", Roboto, Arial, sans-serif;
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 500;
     opacity: 0.82;
   }
 
@@ -233,7 +247,7 @@
     background: rgba(0, 0, 0, 0.18);
     color: inherit;
     font-size: 14px;
-    font-family: inherit;
+    font-family: Roboto, Arial, sans-serif;
 
     &:focus {
       outline: 2px solid #8ab4f8;
@@ -255,6 +269,7 @@
 }
 
 .sage-ctx-error {
+  font-family: Roboto, Arial, sans-serif;
   font-size: 12.5px;
   color: #f28b82;
   padding: 6px 10px;
@@ -284,7 +299,12 @@
     border: 1px solid rgba(128, 128, 128, 0.32);
     background: rgba(0, 0, 0, 0.18);
     color: inherit;
+    font-family: Roboto, Arial, sans-serif;
     font-size: 13.5px;
+  }
+
+  button {
+    font-family: "Google Sans", Roboto, Arial, sans-serif;
   }
 }
 
@@ -314,7 +334,9 @@
   padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13.5px;
+  font-family: "Google Sans", Roboto, Arial, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
   text-align: left;
 
   &:hover {
@@ -334,6 +356,7 @@
 
 .sage-ctx-empty {
   margin: 12px;
+  font-family: Roboto, Arial, sans-serif;
   font-size: 13px;
   opacity: 0.7;
   text-align: center;
@@ -349,8 +372,9 @@
     border: 0;
     border-radius: 9px;
     padding: 8px 15px;
+    font-family: "Google Sans", Roboto, Arial, sans-serif;
     font-size: 13.5px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
   }
 
@@ -369,3 +393,4 @@
     color: #ffffff;
   }
 }
+
