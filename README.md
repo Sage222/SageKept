@@ -1,16 +1,14 @@
 <div align="center">
-  <img src="docs/assets/images/kept-logo-transparent.png" alt="Kept logo" width="96">
-  <br>
-  <img src="docs/assets/images/kept-wordmark-transparent.png" alt="Kept" width="180">
+  <img src="src/assets/images/sagekept-favicon.svg" alt="SageKept icon" width="84">
 
-# Kept
+# SageKept
 
-### Google Keep-style notes, on your device, your server, or Kept Cloud
+### Fast, offline-first notes & hierarchical project binders — on your device or your own server
 
 </div>
 
 <p align="center">
-  Kept is an open-source notes app for the web, iOS and Android. Fast, colourful, offline-first, and designed to stay simple.
+  <strong>SageKept</strong> is a customized fork of <a href="https://github.com/ericerkz/kept">Kept</a> — an open-source notes and project organization app for the web, iOS, and Android. Built for speed, rich note-taking, offline-first sync, and deep hierarchical organization with nested binders.
 </p>
 
 <p align="center">
@@ -65,13 +63,34 @@ Keep notes on your device with no account or server. Use the native app offline,
 
 <a href="docs/assets/images/kept-features.png"><img src="docs/assets/images/kept-features.png" alt="Rich notes, drawings, code blocks, reminders, colours and patterns, sharing" width="100%"></a>
 
+## What's New in SageKept
+
+SageKept builds directly on the full Kept platform with five targeted enhancements for cleaner visual identity, distraction-free workspaces, and multi-level project hierarchy:
+
+1. **Nested Binders (`Binders within Binders`)**
+   - Organize projects into multi-level hierarchies by nesting binders inside other binders to any depth.
+   - **Expandable Sidebar Tree**: Expand or collapse parent binder branches in the left-hand navigation or click the quick **Add sub-binder** action directly on any binder row.
+   - **Edit Binders Parent Selector**: Choose a parent binder when creating a new binder or reparent existing binders on the fly (with automatic cycle prevention, rename cascading, and child promotion if a parent binder is deleted).
+   - **Binder Breadcrumbs & Sub-Binder Bar**: Navigating into a binder displays a full breadcrumb trail (`Binders › Parent › Child`), quick sub-binder cards with live note counts, a `+ New sub-binder` button, and a toggle between **Including sub-binders** (aggregates notes across the current binder and all descendant sub-binders) and **This binder only**.
+   - **Indented Binder Menus**: Note cards, the note composer, and bulk-selection menus display your binder hierarchy with visual depth indentation.
+2. **Hide All Left-Hand Sidebar Menu Items**
+   - Toggle **Settings → Display & Editing → Hide all left-hand menu items** to completely hide the left-hand navigation column and menu items for a clean, distraction-free canvas.
+3. **SageKept Wordmark & Modern Typography**
+   - Replaced the legacy top-left image logo and script font with a clean, two-tone **SageKept** typographic wordmark set in **Sora** across the navbar, authentication screens, settings, and mobile drawer.
+4. **5 Inbuilt Profile Picture Icons**
+   - Choose from 5 custom built-in SVG profile avatars directly in the profile editor (**Sage Leaf**, **Mountain Peak**, **Wise Owl**, **Explorer / Astronaut**, and **Compass**), or upload a custom photo. New accounts automatically receive one of the 5 built-in icons.
+5. **Modern Browser Tab Icon & PWA Icons**
+   - Updated the browser tab favicon (`sagekept-favicon.svg` & `favicon.ico`) and web app manifest icons to a modern emerald-and-sage notebook emblem with a bookmark ribbon and botanical leaf accent.
+
 ## More than basic notes
 
 - Text and rich notes, including code blocks with syntax highlighting
 - Rich hyperlinks - copy and paste just a URL and a pretty whole-card preview will get created
 - Nested checklists with drag-to-reorder
 - Images, drawings, links and file attachments
-- Labels, binders, colours and backgrounds
+- Labels, **nested binders (binders within binders)**, colours and backgrounds
+- **Collapsible / hideable left-hand sidebar menu** via Settings for distraction-free focus
+- **5 inbuilt SVG profile picture icons** plus custom image upload
 - [Passcode-protected encrypted notes](#locked-note-encryption), using AES-256-GCM for note content, images and attachments
 - See [Search and filters](docs/search.md) for search operators and creation-date examples.
 - Customisable appearance, note density, checklist behaviour and shared-note organization
@@ -492,25 +511,25 @@ Use **Ctrl** on Windows/Linux or **⌘** on Mac where both are listed. Shortcuts
 
 ## Development
 
-Kept is an Angular app with a Node/Express backend and SQLite storage.
+SageKept is an Angular 21 application with a Node/Express backend and SQLite storage.
 
 ```bash
 npm install
-npm run start
+npm run dev
 ```
 
 Useful scripts:
 
-- `npm run build`
-- `npm run test:sync`
-- `npm run test:proxy-image`
-- `npm run test:proxy-image:browser` (run `npx playwright install chromium` once first)
-- `npm run api`
-- `npm run client`
+- `npm run dev` — builds the Angular bundle (if not already built) and starts the Express + SQLite server
+- `npm run build` — prepares i18n catalogues, compiles the Angular production bundle to `dist/keep`, and runs PurgeCSS
+- `npm run start` — starts the Node/Express server (`server/server.js`)
+- `npm run lint` — runs TypeScript type-checking (`tsc -p tsconfig.app.json --noEmit`)
+- `npm run api` — runs the Express backend with `nodemon`
+- `npm run client` — runs the Angular dev server with translation watcher and API proxy
 
 ## Translations
 
-Help translate Kept’s web/in-app UI and native Android/iOS screens together in this repository. See the [translation contribution guide](translations/README.md). English is currently the only shipped language.
+Help translate the web/in-app UI and native Android/iOS screens together in this repository. See the [translation contribution guide](translations/README.md). English is currently the only shipped language.
 
 ## Build It Yourself
 
@@ -524,4 +543,4 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 ## Acknowledgement
 
-Kept's original UI scaffolding was forked from [aBrihoum/google-keep-clone](https://github.com/aBrihoum/google-keep-clone). The project has since been substantially rewritten and extended into a full self-hosted notes platform — but the visual foundation came from that earlier work, and the credit is gratefully due.
+SageKept is forked from [ericerkz/kept](https://github.com/ericerkz/kept). Kept's original UI scaffolding was forked from [aBrihoum/google-keep-clone](https://github.com/aBrihoum/google-keep-clone) and substantially rewritten and extended into a full self-hosted notes platform.
