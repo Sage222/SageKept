@@ -1,0 +1,35 @@
+services:
+  kept:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sagekept:latest
+    container_name: sagekept
+    restart: unless-stopped
+    ports:
+      - "${KEPT_PORT:-6767}:6767"
+    volumes:
+      - ./data:/app/data
+    environment:
+      NODE_ENV: production
+      PORT: 6767
+      DATA_DIR: /app/data
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # Optional configuration (uncomment as needed):
+      # BASE_URL: https://sagekept.example.com
+      # KEPT_SESSION_TTL_DAYS: "30"
+      # KEPT_CORS_ORIGINS: https://sagekept.example.com
+      # KEPT_ALLOW_RESTORE: "1"
+      # KEPT_TAKEOUT_UPLOAD_MAX: 5GB
+      # KEPT_OIDC_ISSUER: ""
+      # KEPT_OIDC_CLIENT_ID: ""
+      # KEPT_OIDC_CLIENT_SECRET: ""
+      # KEPT_OIDC_NAME: Single sign-on
+      # KEPT_DISABLE_PASSWORD_LOGIN: "0"
+      # KEPT_SMTP_HOST: ""
+      # KEPT_SMTP_PORT: "587"
+      # KEPT_SMTP_SECURE: "0"
+      # KEPT_SMTP_USER: ""
+      # KEPT_SMTP_PASS: ""
+      # KEPT_SMTP_FROM: "SageKept <no-reply@example.com>"

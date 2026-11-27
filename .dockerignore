@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+coverage
+data
+.angular
+.git
+.gitignore
+.env*
+!.env.example
+*.log
+secrets
+.aistudio

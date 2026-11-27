@@ -123,12 +123,12 @@ Requirements:
 Clone your SageKept repository and build/start the container from source:
 
 ```bash
-git clone <your-sagekept-repo-url> sagekept
-cd sagekept
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+git clone https://github.com/Sage222/SageKept.git SageKept
+cd SageKept
+docker compose up -d --build
 ```
 
-Open `http://localhost:6767` (or port `3000` when running `npm run dev` directly) and create the first admin account.
+Open `http://localhost:6767` (or `http://<your-server-ip>:6767`) and create the first admin account.
 
 SageKept stores its SQLite database, uploads, attachments, and generated server data in `./data`. Back that folder up if you are not using the built-in backup tools.
 
@@ -150,7 +150,7 @@ Replace `1000:1000` with the Linux user and group IDs that should own SageKept's
 ```bash
 mkdir -p ./data
 sudo chown -R 1000:1000 ./data
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose up -d --build
 ```
 
 With `user:` set, the container uses that identity and keeps its supplementary groups. `PUID`/`PGID` are ignored, and file ownership is not modified automatically. The data folder and existing files must be writable by that user or one of its groups; mounted secret files must be readable. If permissions prevent access, startup stops with an error.
@@ -306,9 +306,9 @@ The restore flag is intentionally opt-in so the restore endpoint is not left ope
 ## Updating
 
 ```bash
-cd sagekept
+cd SageKept
 git pull
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose up -d --build
 ```
 
 Your `./data` folder is not replaced by updates.
@@ -452,19 +452,19 @@ Help translate the web/in-app UI and native Android/iOS screens together in this
 To build and run SageKept locally from source with Docker Compose:
 
 ```bash
-git clone <your-sagekept-repo-url> sagekept
-cd sagekept
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+git clone https://github.com/Sage222/SageKept.git SageKept
+cd SageKept
+docker compose up -d --build
 ```
 
 Or build and run directly with Node.js:
 
 ```bash
-git clone <your-sagekept-repo-url> sagekept
-cd sagekept
+git clone https://github.com/Sage222/SageKept.git SageKept
+cd SageKept
 npm install
 npm run build
-npm run start
+PORT=6767 npm run start
 ```
 
 ## Acknowledgement
