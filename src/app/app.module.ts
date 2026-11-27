@@ -37,9 +37,11 @@ import { LocationMapPickerComponent } from './components/location-map-picker/loc
 import { TranslatePipe, provideTranslateService } from '@ngx-translate/core';
 import { BundledTranslationLoader, I18nService } from './i18n/i18n.service';
 import { UiTextPipe, UiPluralPipe, UiDatePipe } from './i18n/ui-text.pipe';
+import { ContextMenuComponent } from './components/context-menu/context-menu.component';
 
 @NgModule({ declarations: [
         AppComponent,
+        ContextMenuComponent,
         UiTextPipe,
         UiPluralPipe,
         UiDatePipe,

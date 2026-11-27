@@ -2,134 +2,165 @@
 <div sideBar class="main-sidebar" [class.native-phone-drawer]="nativePhoneDrawer" [class.all-menu-hidden]="preferences.value.hideAllSidebarMenuItems" [inert]="drawerClosed || preferences.value.hideAllSidebarMenuItems">
   @if (!preferences.value.hideAllSidebarMenuItems) {
   <div class="sidenav-top">
-    <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item" routerLink="/" (click)="onNavItemClick()">
-      <span class="pic lamp" aria-hidden="true"></span>
-      <span class="text">{{ 'common.notes' | translate }}</span>
-    </div>
-    <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item" routerLink="/reminders" (click)="onNavItemClick()">
-      <span class="pic reminder" aria-hidden="true"></span>
-      <span class="text">{{ 'common.reminders' | translate }}</span>
-    </div>
-    <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item" routerLink="/attachments" (click)="onNavItemClick()">
-      <span class="pic attachment" aria-hidden="true"></span>
-      <span class="text">{{ 'common.attachments' | translate }}</span>
-    </div>
-    <div [hidden]="auth.isLocal" routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item" routerLink="/shared" (click)="onNavItemClick()">
-      <span class="pic col" aria-hidden="true"></span>
-      <span class="text">{{ 'common.shared' | translate }}</span>
-    </div>
+    @if (!preferences.isSidebarItemHidden('notes')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item"
+        data-ctx-sidebar-item="notes" data-ctx-sidebar-label="Notes" routerLink="/" (click)="onNavItemClick()">
+        <span class="pic lamp" aria-hidden="true"></span>
+        <span class="text">{{ 'common.notes' | translate }}</span>
+      </div>
+    }
+    @if (!preferences.isSidebarItemHidden('reminders')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item"
+        data-ctx-sidebar-item="reminders" data-ctx-sidebar-label="Reminders" routerLink="/reminders" (click)="onNavItemClick()">
+        <span class="pic reminder" aria-hidden="true"></span>
+        <span class="text">{{ 'common.reminders' | translate }}</span>
+      </div>
+    }
+    @if (!preferences.isSidebarItemHidden('attachments')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item"
+        data-ctx-sidebar-item="attachments" data-ctx-sidebar-label="Attachments" routerLink="/attachments" (click)="onNavItemClick()">
+        <span class="pic attachment" aria-hidden="true"></span>
+        <span class="text">{{ 'common.attachments' | translate }}</span>
+      </div>
+    }
+    @if (!preferences.isSidebarItemHidden('shared')) {
+      <div [hidden]="auth.isLocal" routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item"
+        data-ctx-sidebar-item="shared" data-ctx-sidebar-label="Shared" routerLink="/shared" (click)="onNavItemClick()">
+        <span class="pic col" aria-hidden="true"></span>
+        <span class="text">{{ 'common.shared' | translate }}</span>
+      </div>
+    }
   </div>
 
-  <div class="sidenav-labels-header sidenav-binders-header">
-    <button type="button" class="section-toggle" (click)="toggleBinders()"
-      [disabled]="binderCount === 0"
-      [attr.aria-expanded]="binderCount > 0 && bindersExpanded"
-      [attr.aria-label]="'accessibility.binders' | translate: { count: binderCount }"
-      aria-controls="sidebar-binders">
-      <span class="material-pic material-symbols-outlined binder-section-icon" aria-hidden="true">folder_open</span>
-      <span class="text">{{ 'common.binders' | translate }} <span class="section-count">({{binderCount}})</span></span>
-      @if (binderCount > 0) {
-        <span class="material-symbols-outlined section-chevron" [class.collapsed]="!bindersExpanded" aria-hidden="true">expand_more</span>
-      }
-    </button>
-    <button type="button" class="edit-labels-btn H" [attr.aria-label]="'sidenav.edit_binders' | translate" [attr.title]="'sidenav.edit_binders' | translate"
-      (click)="openBinderModal()">
-      <span class="material-symbols-outlined">edit</span>
-    </button>
-  </div>
-
-  <div id="sidebar-binders" class="sidenav-binders" [hidden]="!bindersExpanded || binderCount === 0">
-    @for (binder of visibleBinderTree; track binder.name) {
-      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item is-binder"
-        [class.is-nested-binder]="binder.depth > 0"
-        [class.has-sub-binders]="binder.hasChildren"
-        [style.--binder-depth]="binder.depth"
-        [attr.data-binder-drop]="binder.name"
-        (click)="onNavItemClick()"
-        [title]="binder.name"
-        [routerLink]="['/binder', binder.name]">
-        @if (binder.hasChildren) {
-          <button type="button" class="binder-tree-toggle"
-            [attr.aria-expanded]="isBinderBranchExpanded(binder.name)"
-            [attr.aria-label]="'Toggle sub-binders for ' + binder.name"
-            (click)="toggleBinderBranch(binder.name, $event)">
-            <span class="material-symbols-outlined" [class.collapsed]="!isBinderBranchExpanded(binder.name)" aria-hidden="true">expand_more</span>
-          </button>
-        } @else {
-          <span class="binder-tree-spacer" aria-hidden="true"></span>
+  @if (!preferences.isSidebarItemHidden('binders')) {
+    <div class="sidenav-labels-header sidenav-binders-header" data-ctx-sidebar-item="binders" data-ctx-sidebar-label="Binders section">
+      <button type="button" class="section-toggle" (click)="toggleBinders()"
+        [disabled]="binderCount === 0"
+        [attr.aria-expanded]="binderCount > 0 && bindersExpanded"
+        [attr.aria-label]="'accessibility.binders' | translate: { count: binderCount }"
+        aria-controls="sidebar-binders">
+        <span class="material-pic material-symbols-outlined binder-section-icon" aria-hidden="true">folder_open</span>
+        <span class="text">{{ 'common.binders' | translate }} <span class="section-count">({{binderCount}})</span></span>
+        @if (binderCount > 0) {
+          <span class="material-symbols-outlined section-chevron" [class.collapsed]="!bindersExpanded" aria-hidden="true">expand_more</span>
         }
-        <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">{{ binder.memberCount ? 'folder_shared' : (binder.depth > 0 ? 'subdirectory_arrow_right' : 'folder') }}</span>
-        <span class="text">{{binder.name}}</span>
-        <span class="label-abbr" aria-hidden="true">{{compactLabel(binder.name)}}</span>
-        <button type="button" class="add-sub-binder-btn" title="Add sub-binder" [attr.aria-label]="'Add sub-binder inside ' + binder.name"
-          (click)="openAddSubBinder(binder.name, $event)">
-          <span class="material-symbols-outlined" aria-hidden="true">create_new_folder</span>
-        </button>
-      </div>
-    }
-    @for (binder of Shared.sharedBinders; track binder.id) {
-      <div class="item is-binder received-binder" routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" [routerLink]="['/shared-binder', binder.id]" (click)="onNavItemClick()">
-        <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">folder_shared</span>
-        <span class="text"><span>{{binder.name}}</span><small>{{binder.ownerDisplayName || binder.ownerUsername}}</small></span>
-        <span class="label-abbr" aria-hidden="true">{{compactLabel(binder.name)}}</span>
-        <button type="button" class="binder-people-button" [attr.aria-label]="'binder_sharing.people' | translate: { name: binder.name }"
-          (click)="$event.stopPropagation(); openBinderSharing(binder.name,binder.id)"><span class="material-symbols-outlined" aria-hidden="true">more_horiz</span></button>
-      </div>
-    }
-  </div>
+      </button>
+      <button type="button" class="edit-labels-btn H" [attr.aria-label]="'sidenav.edit_binders' | translate" [attr.title]="'sidenav.edit_binders' | translate"
+        (click)="openBinderModal()">
+        <span class="material-symbols-outlined">edit</span>
+      </button>
+    </div>
 
-  <div class="sidenav-labels-header">
-    <button type="button" class="section-toggle" (click)="toggleLabels()"
-      [disabled]="Shared.label.list.length === 0"
-      [attr.aria-expanded]="Shared.label.list.length > 0 && labelsExpanded"
-      [attr.aria-label]="'accessibility.labels' | translate: { count: Shared.label.list.length }"
-      aria-controls="sidebar-labels">
-      <span class="pic label" aria-hidden="true"></span>
-      <span class="text">{{ 'common.labels' | translate }} <span class="section-count">({{Shared.label.list.length}})</span></span>
-      @if (Shared.label.list.length > 0) {
-        <span class="material-symbols-outlined section-chevron" [class.collapsed]="!labelsExpanded" aria-hidden="true">expand_more</span>
+    <div id="sidebar-binders" class="sidenav-binders" [hidden]="!bindersExpanded || binderCount === 0">
+      @for (binder of visibleBinderTree; track binder.name) {
+        <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item is-binder"
+          [class.is-nested-binder]="binder.depth > 0"
+          [class.has-sub-binders]="binder.hasChildren"
+          [style.--binder-depth]="binder.depth"
+          [attr.data-binder-drop]="binder.name"
+          [attr.data-ctx-binder]="binder.name"
+          [attr.data-ctx-sidebar-item]="'binder:' + binder.name.toLowerCase()"
+          [attr.data-ctx-sidebar-label]="'Binder: ' + binder.name"
+          (click)="onNavItemClick()"
+          [title]="binder.name"
+          [routerLink]="['/binder', binder.name]">
+          @if (binder.hasChildren) {
+            <button type="button" class="binder-tree-toggle"
+              [attr.aria-expanded]="isBinderBranchExpanded(binder.name)"
+              [attr.aria-label]="'Toggle sub-binders for ' + binder.name"
+              (click)="toggleBinderBranch(binder.name, $event)">
+              <span class="material-symbols-outlined" [class.collapsed]="!isBinderBranchExpanded(binder.name)" aria-hidden="true">expand_more</span>
+            </button>
+          } @else {
+            <span class="binder-tree-spacer" aria-hidden="true"></span>
+          }
+          <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">{{ binder.memberCount ? 'folder_shared' : (binder.depth > 0 ? 'subdirectory_arrow_right' : 'folder') }}</span>
+          <span class="text">{{binder.name}}</span>
+          <span class="label-abbr" aria-hidden="true">{{compactLabel(binder.name)}}</span>
+          <button type="button" class="add-sub-binder-btn" title="Add sub-binder" [attr.aria-label]="'Add sub-binder inside ' + binder.name"
+            (click)="openAddSubBinder(binder.name, $event)">
+            <span class="material-symbols-outlined" aria-hidden="true">create_new_folder</span>
+          </button>
+        </div>
       }
-    </button>
-    <button type="button" class="edit-labels-btn H" [attr.aria-label]="'sidenav.edit_labels' | translate" [attr.title]="'sidenav.edit_labels' | translate"
-      (click)="openModal()">
-      <span class="material-symbols-outlined">edit</span>
-    </button>
-  </div>
+      @for (binder of visibleSharedBinders; track binder.id) {
+        <div class="item is-binder received-binder" routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }"
+          [attr.data-ctx-shared-binder-id]="binder.id"
+          [attr.data-ctx-shared-binder-name]="binder.name"
+          [attr.data-ctx-sidebar-item]="'shared-binder:' + binder.id"
+          [attr.data-ctx-sidebar-label]="'Shared binder: ' + binder.name"
+          [routerLink]="['/shared-binder', binder.id]" (click)="onNavItemClick()">
+          <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">folder_shared</span>
+          <span class="text"><span>{{binder.name}}</span><small>{{binder.ownerDisplayName || binder.ownerUsername}}</small></span>
+          <span class="label-abbr" aria-hidden="true">{{compactLabel(binder.name)}}</span>
+          <button type="button" class="binder-people-button" [attr.aria-label]="'binder_sharing.people' | translate: { name: binder.name }"
+            (click)="$event.stopPropagation(); openBinderSharing(binder.name,binder.id)"><span class="material-symbols-outlined" aria-hidden="true">more_horiz</span></button>
+        </div>
+      }
+    </div>
+  }
 
-  <div id="sidebar-labels" class="sidenav-labels" [hidden]="!labelsExpanded || Shared.label.list.length === 0">
-    @for (label of Shared.label.list; track label.name) {
-      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item is-label"
-        (click)="onNavItemClick()"
-        [title]="label.name"
-        [routerLink]="['/label', label.name]">
+  @if (!preferences.isSidebarItemHidden('labels')) {
+    <div class="sidenav-labels-header" data-ctx-sidebar-item="labels" data-ctx-sidebar-label="Labels section">
+      <button type="button" class="section-toggle" (click)="toggleLabels()"
+        [disabled]="Shared.label.list.length === 0"
+        [attr.aria-expanded]="Shared.label.list.length > 0 && labelsExpanded"
+        [attr.aria-label]="'accessibility.labels' | translate: { count: Shared.label.list.length }"
+        aria-controls="sidebar-labels">
         <span class="pic label" aria-hidden="true"></span>
-        <span class="text">{{label.name}}</span>
-        <span class="label-abbr" aria-hidden="true">{{compactLabel(label.name)}}</span>
-      </div>
-    }
-  </div>
+        <span class="text">{{ 'common.labels' | translate }} <span class="section-count">({{Shared.label.list.length}})</span></span>
+        @if (Shared.label.list.length > 0) {
+          <span class="material-symbols-outlined section-chevron" [class.collapsed]="!labelsExpanded" aria-hidden="true">expand_more</span>
+        }
+      </button>
+      <button type="button" class="edit-labels-btn H" [attr.aria-label]="'sidenav.edit_labels' | translate" [attr.title]="'sidenav.edit_labels' | translate"
+        (click)="openModal()">
+        <span class="material-symbols-outlined">edit</span>
+      </button>
+    </div>
+
+    <div id="sidebar-labels" class="sidenav-labels" [hidden]="!labelsExpanded || Shared.label.list.length === 0">
+      @for (label of visibleLabels; track label.name) {
+        <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item is-label"
+          [attr.data-ctx-label-id]="label.id"
+          [attr.data-ctx-label-name]="label.name"
+          [attr.data-ctx-sidebar-item]="'label:' + label.name.toLowerCase()"
+          [attr.data-ctx-sidebar-label]="'Label: ' + label.name"
+          (click)="onNavItemClick()"
+          [title]="label.name"
+          [routerLink]="['/label', label.name]">
+          <span class="pic label" aria-hidden="true"></span>
+          <span class="text">{{label.name}}</span>
+          <span class="label-abbr" aria-hidden="true">{{compactLabel(label.name)}}</span>
+        </div>
+      }
+    </div>
+  }
 
   <div class="sidenav-bottom">
-    <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item" routerLink="/archive" (click)="onNavItemClick()">
-      <span class="pic archive" aria-hidden="true"></span>
-      <span class="text">{{ 'common.archive' | translate }}</span>
-    </div>
-    <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" routerLink="/trash" class="item" (click)="onNavItemClick()">
-      <span class="pic trash" aria-hidden="true"></span>
-      <span class="text">{{ 'common.trash' | translate }}</span>
-    </div>
-    @if (auth.isAdmin) {
-      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" routerLink="/users" class="item" (click)="onNavItemClick()">
+    @if (!preferences.isSidebarItemHidden('archive')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item"
+        data-ctx-sidebar-item="archive" data-ctx-sidebar-label="Archive" routerLink="/archive" (click)="onNavItemClick()">
+        <span class="pic archive" aria-hidden="true"></span>
+        <span class="text">{{ 'common.archive' | translate }}</span>
+      </div>
+    }
+    @if (!preferences.isSidebarItemHidden('trash')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" routerLink="/trash" class="item"
+        data-ctx-sidebar-item="trash" data-ctx-sidebar-label="Trash" (click)="onNavItemClick()">
+        <span class="pic trash" aria-hidden="true"></span>
+        <span class="text">{{ 'common.trash' | translate }}</span>
+      </div>
+    }
+    @if (auth.isAdmin && !preferences.isSidebarItemHidden('users')) {
+      <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" routerLink="/users" class="item"
+        data-ctx-sidebar-item="users" data-ctx-sidebar-label="Users & Admin Settings" (click)="onNavItemClick()">
         <span class="pic users" aria-hidden="true"></span>
         <span class="text">{{ 'sidenav.users_admin_settings' | translate }}</span>
       </div>
     }
-    <div class="item mobile-only-item" (click)="toggleTheme()">
-      <span class="pic" [ngClass]="auth.effectiveTheme === 'light' ? 'dark-mode' : 'light-mode'" aria-hidden="true"></span>
-      <span class="text">{{(auth.effectiveTheme === 'light') ? ('sidenav.use_dark_mode' | translate) : ('sidenav.use_light_mode' | translate)}}</span>
-    </div>
-    @if (!auth.isLocal) {
-    <div class="item" (click)="logout()">
+    @if (!auth.isLocal && !preferences.isSidebarItemHidden('logout')) {
+    <div class="item" data-ctx-sidebar-item="logout" data-ctx-sidebar-label="Sign out" (click)="logout()">
       <span class="pic logout" aria-hidden="true"></span>
       <span class="text">{{ 'common.sign_out' | translate }}</span>
     </div>

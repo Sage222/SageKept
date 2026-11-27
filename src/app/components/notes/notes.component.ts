@@ -1540,7 +1540,8 @@ export class NotesComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.cancelNoteArchiveSwipe()
       this.longPressFired = true
       this.codeTouchTracking = false
-      this.beginTouchDrag(note, noteEl)
+      this.suppressNextOpen = true
+      setTimeout(() => { this.suppressNextOpen = false }, 500)
     }, 400)
   }
 
@@ -3391,6 +3392,13 @@ export class NotesComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.Shared.openSelectedReminder.subscribe(() => this.openReminderForSelectedNote()),
       this.Shared.deleteSelectedForever.subscribe(() => this.removeSelectedNotes()),
       this.Shared.selectAllNotes.subscribe(() => { void this.selectAllNotes() }),
+      this.Shared.openNoteById.subscribe(noteId => {
+        const note = this.Shared.note.all.find(n => n.id === noteId)
+        if (note) {
+          const el = document.querySelector<HTMLDivElement>(`[data-note-id="${noteId}"]`)
+          void this.openModal(el, note)
+        }
+      }),
       this.Shared.noteViewType.subscribe(() => {
         setTimeout(() => this.scheduleBuildMasonry(true), 300);
         this.scheduleIPadMasonrySettle()

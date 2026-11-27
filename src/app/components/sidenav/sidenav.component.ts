@@ -67,8 +67,17 @@ export class NavComponent implements OnInit, OnDestroy {
   get visibleBinderTree(): BinderTreeNode[] {
     const collapsed = this.collapsedBinderBranches;
     return this.Shared.binder.treeList.filter(node =>
+      !this.preferences.isSidebarBinderHidden(node.name) &&
       !node.path.slice(0, -1).some(anc => collapsed[anc.toLowerCase()])
     );
+  }
+
+  get visibleSharedBinders() {
+    return (this.Shared.sharedBinders || []).filter(b => !this.preferences.isSidebarSharedBinderHidden(b.id));
+  }
+
+  get visibleLabels() {
+    return (this.Shared.label.list || []).filter(l => !this.preferences.isSidebarLabelHidden(l.name));
   }
 
   constructor(
@@ -124,6 +133,9 @@ export class NavComponent implements OnInit, OnDestroy {
           this.Shared.label.id = id
           await this.Shared.label.db.update({ name: value })
           await this.Shared.label.db.updateAllLabels(value)
+          if (oldName) {
+            this.preferences.renameSidebarItem('label:' + oldName.trim().toLowerCase(), 'label:' + value.trim().toLowerCase());
+          }
           if (oldName && this.labelNoteCounts && Object.hasOwn(this.labelNoteCounts,oldName)) {
             this.labelNoteCounts[value.trim()]=this.labelNoteCounts[oldName];
             if (oldName!==value.trim()) delete this.labelNoteCounts[oldName];
@@ -302,6 +314,7 @@ export class NavComponent implements OnInit, OnDestroy {
       update: (value: string) => value.trim() === name ? Promise.resolve() : this.changeBinder(async () => {
         const nextName = value.trim();
         await this.Shared.binder.db.update(name, nextName);
+        this.preferences.renameSidebarItem('binder:' + name.trim().toLowerCase(), 'binder:' + nextName.toLowerCase());
         ++this.previewRequest;
         const members=this.sharingPreviews.get(name.toLowerCase());
         if (members) {
@@ -519,7 +532,8 @@ export class NavComponent implements OnInit, OnDestroy {
     this.subscriptions.push(
       this.Shared.closeSideBar.subscribe(x => { if (x) this.collapseSideBar() }),
       this.Shared.closeSideBarIfOpen.subscribe(x => { if (x) this.closeSideBarIfOpen() }),
-      this.Shared.openBinderModalForParent.subscribe(parent => this.openBinderModal(parent))
+      this.Shared.openBinderModalForParent.subscribe(parent => this.openBinderModal(parent)),
+      this.Shared.openEditLabelsModal.subscribe(() => this.openModal())
     );
     const sidebar = document.querySelector('[sideBar]');
     if (sidebar) {

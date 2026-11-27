@@ -38,6 +38,7 @@ const CapacitorApp = registerPlugin<CapacitorAppPlugin>('App');
         </aside>
       }
       <app-reminder-notification></app-reminder-notification>
+      <app-context-menu></app-context-menu>
       @if (notificationPromptVisible) {
         <div class="notification-permission-card" role="region" aria-label="Notification permission prompt">
           <button type="button" class="notification-permission-close" aria-label="Dismiss notification prompt"

@@ -162,12 +162,6 @@
             [class.view-grid]="Shared.noteViewType.value === 'list'"
             [attr.data-pop]="Shared.noteViewType.value === 'list' ? ('accessibility.grid_view' | translate) : ('accessibility.list_view' | translate)"
             (click)="view()"></div>
-          <button class="theme-toggle H pop" type="button"
-            [attr.data-pop]="auth.effectiveTheme === 'light' ? ('navbar.use_dark_theme' | translate) : ('navbar.use_light_theme' | translate)"
-            [attr.aria-label]="(auth.effectiveTheme === 'light') ? ('navbar.use_dark_theme' | translate) : ('navbar.use_light_theme' | translate)"
-            (click)="toggleTheme()">
-            <span class="theme-emoji">{{(auth.effectiveTheme === 'light') ? ('🌙') : ('☀️')}}</span>
-          </button>
         </div>
       </div>
 

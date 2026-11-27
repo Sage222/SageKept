@@ -1,0 +1,162 @@
+@if (isOpen) {
+  <div #menuEl class="sage-ctx-menu" role="menu" [attr.aria-label]="contextTitle"
+    [style.left.px]="x" [style.top.px]="y"
+    (contextmenu)="$event.preventDefault(); $event.stopPropagation()">
+    <div class="sage-ctx-header">
+      <span class="material-symbols-outlined sage-ctx-header-icon" aria-hidden="true">{{contextIcon}}</span>
+      <span class="sage-ctx-header-title">{{contextTitle}}</span>
+    </div>
+    <div class="sage-ctx-items">
+      @for (item of actions; track item.id) {
+        @if (item.dividerBefore) {
+          <div class="sage-ctx-divider" role="separator"></div>
+        }
+        <button type="button" class="sage-ctx-item" role="menuitem"
+          [class.is-danger]="item.danger"
+          (click)="runAction(item, $event)">
+          <span class="material-symbols-outlined sage-ctx-item-icon" aria-hidden="true">{{item.icon}}</span>
+          <span class="sage-ctx-item-label">{{item.label}}</span>
+          @if (item.badge) {
+            <span class="sage-ctx-item-badge">{{item.badge}}</span>
+          }
+        </button>
+      }
+    </div>
+  </div>
+}
+
+@if (dialogMode) {
+  <div class="sage-ctx-dialog-backdrop" (click)="closeDialog()">
+    <section class="sage-ctx-dialog" role="dialog" aria-modal="true" [attr.aria-label]="dialogTitle"
+      (click)="$event.stopPropagation()">
+      <header class="sage-ctx-dialog-header">
+        <h3>{{dialogTitle}}</h3>
+        <button type="button" class="sage-ctx-dialog-close" aria-label="Close" (click)="closeDialog()">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </header>
+      @if (dialogSubtitle) {
+        <p class="sage-ctx-dialog-subtitle">{{dialogSubtitle}}</p>
+      }
+
+      @if (dialogMode === 'rename-binder' || dialogMode === 'create-binder' || dialogMode === 'rename-label' || dialogMode === 'create-label' || dialogMode === 'rename-note') {
+        <form class="sage-ctx-dialog-form" (submit)="$event.preventDefault(); submitDialog()">
+          <label class="sage-ctx-field">
+            <span>{{ dialogMode === 'rename-note' ? 'Note title' : (dialogMode.includes('binder') ? 'Binder name' : 'Label name') }}</span>
+            <input #dialogInput type="text" maxlength="80"
+              [value]="dialogValue"
+              (input)="dialogValue = $any($event.target).value; dialogError = ''"
+              [placeholder]="dialogMode === 'rename-note' ? 'Enter note title' : 'Enter name'">
+          </label>
+
+          @if (dialogMode === 'create-binder') {
+            <label class="sage-ctx-field">
+              <span>Parent binder (optional)</span>
+              <select [value]="dialogParentBinder" (change)="dialogParentBinder = $any($event.target).value">
+                <option value="">None (top-level binder)</option>
+                @for (node of Shared.binder.treeList; track node.name) {
+                  <option [value]="node.name">{{formatIndentedBinder(node)}}</option>
+                }
+              </select>
+            </label>
+          }
+
+          @if (dialogError) {
+            <div class="sage-ctx-error" role="alert">{{dialogError}}</div>
+          }
+
+          <footer class="sage-ctx-dialog-footer">
+            <button type="button" class="btn-secondary" [disabled]="dialogBusy" (click)="closeDialog()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="dialogBusy">
+              {{ dialogMode.startsWith('create') ? 'Create' : 'Save' }}
+            </button>
+          </footer>
+        </form>
+      }
+
+      @if (dialogMode === 'delete-binder' || dialogMode === 'delete-label') {
+        @if (dialogError) {
+          <div class="sage-ctx-error" role="alert">{{dialogError}}</div>
+        }
+        <footer class="sage-ctx-dialog-footer">
+          <button type="button" class="btn-secondary" [disabled]="dialogBusy" (click)="closeDialog()">Cancel</button>
+          <button type="button" class="btn-danger" [disabled]="dialogBusy" (click)="submitDialog()">Delete</button>
+        </footer>
+      }
+
+      @if (dialogMode === 'note-binder') {
+        <div class="sage-ctx-picker-body">
+          <div class="sage-ctx-quick-add">
+            <input type="text" maxlength="50" placeholder="Create & move to new binder..."
+              [value]="dialogValue"
+              (input)="dialogValue = $any($event.target).value; dialogError = ''"
+              (keydown.enter)="$event.preventDefault(); createAndAssignNoteBinder()">
+            <button type="button" class="btn-primary" [disabled]="!dialogValue.trim() || dialogBusy"
+              (click)="createAndAssignNoteBinder()">Create</button>
+          </div>
+          @if (dialogError) {
+            <div class="sage-ctx-error" role="alert">{{dialogError}}</div>
+          }
+          <div class="sage-ctx-picker-list">
+            <button type="button" class="sage-ctx-picker-item"
+              [class.is-active]="!dialogNote?.binder"
+              (click)="assignNoteToBinder('')">
+              <span class="material-symbols-outlined" aria-hidden="true">folder_off</span>
+              <span>No binder</span>
+              @if (!dialogNote?.binder) {
+                <span class="material-symbols-outlined check" aria-hidden="true">check</span>
+              }
+            </button>
+            @for (node of Shared.binder.treeList; track node.name) {
+              <button type="button" class="sage-ctx-picker-item"
+                [style.paddingLeft.px]="12 + node.depth * 16"
+                [class.is-active]="dialogNote?.binder === node.name"
+                (click)="assignNoteToBinder(node.name)">
+                <span class="material-symbols-outlined" aria-hidden="true">{{ node.depth > 0 ? 'subdirectory_arrow_right' : 'folder' }}</span>
+                <span>{{node.name}}</span>
+                @if (dialogNote?.binder === node.name) {
+                  <span class="material-symbols-outlined check" aria-hidden="true">check</span>
+                }
+              </button>
+            }
+          </div>
+          <footer class="sage-ctx-dialog-footer">
+            <button type="button" class="btn-secondary" (click)="closeDialog()">Done</button>
+          </footer>
+        </div>
+      }
+
+      @if (dialogMode === 'note-labels') {
+        <div class="sage-ctx-picker-body">
+          <div class="sage-ctx-quick-add">
+            <input type="text" maxlength="50" placeholder="Create & add new label..."
+              [value]="newDialogLabelName"
+              (input)="newDialogLabelName = $any($event.target).value; dialogError = ''"
+              (keydown.enter)="$event.preventDefault(); createAndAddDialogNoteLabel()">
+            <button type="button" class="btn-primary" [disabled]="!newDialogLabelName.trim() || dialogBusy"
+              (click)="createAndAddDialogNoteLabel()">Add</button>
+          </div>
+          @if (dialogError) {
+            <div class="sage-ctx-error" role="alert">{{dialogError}}</div>
+          }
+          <div class="sage-ctx-picker-list">
+            @for (item of dialogNoteLabels; track item.name) {
+              <button type="button" class="sage-ctx-picker-item"
+                [class.is-active]="item.added"
+                (click)="toggleDialogNoteLabel(item)">
+                <span class="material-symbols-outlined" aria-hidden="true">{{ item.added ? 'check_box' : 'check_box_outline_blank' }}</span>
+                <span>{{item.name}}</span>
+              </button>
+            }
+            @if (!dialogNoteLabels.length) {
+              <p class="sage-ctx-empty">No labels yet. Create one above.</p>
+            }
+          </div>
+          <footer class="sage-ctx-dialog-footer">
+            <button type="button" class="btn-primary" (click)="closeDialog()">Done</button>
+          </footer>
+        </div>
+      }
+    </section>
+  </div>
+}

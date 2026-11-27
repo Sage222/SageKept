@@ -2,6 +2,27 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { AuthService } from './auth.service';
 
+export interface SidebarCoreMenuItemMeta {
+  id: string;
+  label: string;
+  icon: string;
+  adminOnly?: boolean;
+  serverOnly?: boolean;
+}
+
+export const SIDEBAR_CORE_MENU_ITEMS: SidebarCoreMenuItemMeta[] = [
+  { id: 'notes', label: 'Notes', icon: 'lightbulb' },
+  { id: 'reminders', label: 'Reminders', icon: 'notifications' },
+  { id: 'attachments', label: 'Attachments', icon: 'attach_file' },
+  { id: 'shared', label: 'Shared', icon: 'group' },
+  { id: 'binders', label: 'Binders section', icon: 'folder_open' },
+  { id: 'labels', label: 'Labels section', icon: 'label' },
+  { id: 'archive', label: 'Archive', icon: 'archive' },
+  { id: 'trash', label: 'Trash', icon: 'delete' },
+  { id: 'users', label: 'Users & Admin Settings', icon: 'admin_panel_settings', adminOnly: true },
+  { id: 'logout', label: 'Sign out', icon: 'logout', serverOnly: true },
+];
+
 export interface UserPreferences {
   useTwentyFourHourTime: boolean;
   moveCompletedChecklistItemsToBottom: boolean;
@@ -10,6 +31,7 @@ export interface UserPreferences {
   showPastReminders: boolean;
   defaultNoteColor: string;
   hideAllSidebarMenuItems: boolean;
+  hiddenSidebarItems: string[];
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -20,6 +42,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   showPastReminders: false,
   defaultNoteColor: '',
   hideAllSidebarMenuItems: false,
+  hiddenSidebarItems: [],
 };
 
 @Injectable({ providedIn: 'root' })
@@ -51,6 +74,62 @@ export class UserPreferencesService {
     this.apply(patch);
   }
 
+  isSidebarItemHidden(itemId: string): boolean {
+    const id = String(itemId || '').trim();
+    if (!id) return false;
+    return (this.value.hiddenSidebarItems || []).includes(id);
+  }
+
+  isSidebarBinderHidden(name: string): boolean {
+    return this.isSidebarItemHidden('binder:' + String(name || '').trim().toLowerCase());
+  }
+
+  isSidebarSharedBinderHidden(id: number): boolean {
+    return this.isSidebarItemHidden('shared-binder:' + id);
+  }
+
+  isSidebarLabelHidden(name: string): boolean {
+    return this.isSidebarItemHidden('label:' + String(name || '').trim().toLowerCase());
+  }
+
+  hideSidebarItem(itemId: string): void {
+    const id = String(itemId || '').trim();
+    if (!id) return;
+    const current = this.value.hiddenSidebarItems || [];
+    if (current.includes(id)) return;
+    this.apply({ hiddenSidebarItems: [...current, id] });
+  }
+
+  showSidebarItem(itemId: string): void {
+    const id = String(itemId || '').trim();
+    if (!id) return;
+    const current = this.value.hiddenSidebarItems || [];
+    if (!current.includes(id)) return;
+    this.apply({ hiddenSidebarItems: current.filter(x => x !== id) });
+  }
+
+  toggleSidebarItem(itemId: string): void {
+    if (this.isSidebarItemHidden(itemId)) {
+      this.showSidebarItem(itemId);
+    } else {
+      this.hideSidebarItem(itemId);
+    }
+  }
+
+  renameSidebarItem(oldItemId: string, newItemId: string): void {
+    const oldId = String(oldItemId || '').trim();
+    const newId = String(newItemId || '').trim();
+    if (!oldId || !newId || oldId === newId) return;
+    const current = this.value.hiddenSidebarItems || [];
+    if (!current.includes(oldId)) return;
+    const updated = Array.from(new Set(current.map(x => x === oldId ? newId : x)));
+    this.apply({ hiddenSidebarItems: updated });
+  }
+
+  restoreAllSidebarItems(): void {
+    this.apply({ hiddenSidebarItems: [], hideAllSidebarMenuItems: false });
+  }
+
   async updateShowPastReminders(enabled: boolean) {
     const previous = this.value.showPastReminders;
     this.apply({ showPastReminders: enabled });
@@ -77,6 +156,9 @@ export class UserPreferencesService {
       const raw = localStorage.getItem(this.scopedStorageKey);
       if (!raw) return { ...DEFAULT_PREFERENCES };
       const parsed = JSON.parse(raw) as Partial<UserPreferences>;
+      const hiddenSidebarItems = Array.isArray(parsed.hiddenSidebarItems)
+        ? parsed.hiddenSidebarItems.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        : [];
       return {
         useTwentyFourHourTime: parsed.useTwentyFourHourTime === true,
         moveCompletedChecklistItemsToBottom: parsed.moveCompletedChecklistItemsToBottom !== false,
@@ -85,6 +167,7 @@ export class UserPreferencesService {
         showPastReminders: parsed.showPastReminders === true,
         defaultNoteColor: '',
         hideAllSidebarMenuItems: parsed.hideAllSidebarMenuItems === true,
+        hiddenSidebarItems,
       };
     } catch {
       return { ...DEFAULT_PREFERENCES };

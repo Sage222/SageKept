@@ -20,9 +20,10 @@ import { ReminderService } from 'src/app/services/reminder.service';
 import { NotesService, TakeoutImportResult } from 'src/app/services/notes.service';
 
 import { AuthService, McpAccessSettings, OAuthAccessSettings, OidcLinkStatus } from 'src/app/services/auth.service';
+import { ThemeOptionMeta, USER_THEMES, UserTheme } from 'src/app/interfaces/users';
 import { ManagedHostingService, ManagedHostingInfo, StorageUsage } from 'src/app/services/managed-hosting.service';
 import { PushNotificationService } from 'src/app/services/push-notification.service';
-import { UserPreferencesService } from 'src/app/services/user-preferences.service';
+import { SIDEBAR_CORE_MENU_ITEMS, SidebarCoreMenuItemMeta, UserPreferencesService } from 'src/app/services/user-preferences.service';
 import {
   androidSmartCaptureEnabled,
   androidMajorVersion,
@@ -152,6 +153,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     { value: 'default', label: 'Default' },
     { value: 'large', label: 'Large' }
   ];
+  readonly themeOptions: readonly ThemeOptionMeta[] = USER_THEMES;
   permissionsStatus: PermissionsStatus | null = null;
   isLoadingPermissions = false;
   isRequestingPermission: string | null = null;
@@ -180,7 +182,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private router: Router,
     public authService: AuthService,
     private push: PushNotificationService,
-    private preferences: UserPreferencesService,
+    public preferences: UserPreferencesService,
     public backups: WorkspaceBackupService,
     public migration: WorkspaceMigrationService,
     public nativeWorkspace: NativeWorkspaceService,
@@ -336,6 +338,43 @@ export class SettingsComponent implements OnInit, OnDestroy {
     } finally {
       this.isSavingThemePreference = false;
     }
+  }
+
+  async selectTheme(themeId: UserTheme) {
+    if (this.isSavingThemePreference) return;
+    this.isSavingThemePreference = true;
+    this.error = '';
+    try {
+      await this.authService.updateTheme(themeId);
+    } catch {
+      this.error = uiText('settings.could_not_save_the_appearance_preference');
+    } finally {
+      this.isSavingThemePreference = false;
+    }
+  }
+
+  get controllableCoreSidebarItems(): SidebarCoreMenuItemMeta[] {
+    return SIDEBAR_CORE_MENU_ITEMS.filter(item =>
+      (!item.adminOnly || this.authService.isAdmin) &&
+      (!item.serverOnly || !this.authService.isLocal)
+    );
+  }
+
+  get totalHiddenSidebarItemsCount(): number {
+    return (this.preferences.value.hiddenSidebarItems || []).length;
+  }
+
+  isSidebarItemHidden(itemId: string): boolean {
+    return this.preferences.isSidebarItemHidden(itemId);
+  }
+
+  toggleSidebarItemVisibility(itemId: string): void {
+    this.preferences.toggleSidebarItem(itemId);
+  }
+
+  restoreAllHiddenSidebarItems(): void {
+    this.preferences.restoreAllSidebarItems();
+    this.hideAllSidebarMenuItems = false;
   }
 
   toggleMoveCompletedChecklistItems(event: Event) {

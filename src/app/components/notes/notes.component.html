@@ -22,10 +22,10 @@
           </a>
           @for (anc of currentBinderAncestors; track anc) {
             <span class="material-symbols-outlined binder-crumb-sep" aria-hidden="true">chevron_right</span>
-            <a class="binder-crumb" [routerLink]="['/binder', anc]">{{anc}}</a>
+            <a class="binder-crumb" [attr.data-ctx-binder]="anc" [routerLink]="['/binder', anc]">{{anc}}</a>
           }
           <span class="material-symbols-outlined binder-crumb-sep" aria-hidden="true">chevron_right</span>
-          <span class="binder-crumb binder-crumb-current" aria-current="page">{{currentPage.binder}}</span>
+          <span class="binder-crumb binder-crumb-current" [attr.data-ctx-binder]="currentPage.binder" aria-current="page">{{currentPage.binder}}</span>
         </nav>
         <div class="binder-hierarchy-actions">
           @if (currentSubBinders.length) {
@@ -44,7 +44,7 @@
       @if (currentSubBinders.length) {
         <div class="sub-binders-strip" aria-label="Sub-binders">
           @for (sub of currentSubBinders; track sub.name) {
-            <a class="sub-binder-card" [routerLink]="['/binder', sub.name]" [attr.data-binder-drop]="sub.name">
+            <a class="sub-binder-card" [routerLink]="['/binder', sub.name]" [attr.data-binder-drop]="sub.name" [attr.data-ctx-binder]="sub.name">
               <span class="material-symbols-outlined sub-binder-icon" aria-hidden="true">{{ sub.hasChildren ? 'folder_copy' : 'folder' }}</span>
               <span class="sub-binder-name">{{sub.name}}</span>
               <span class="sub-binder-count">{{subBinderNoteCount(sub.name)}}</span>
@@ -301,7 +301,7 @@
           <div class="labels-container min">
             @for (label of note.labels; track label) {
               @if (label.added) {
-                <div class="label-container">
+                <div class="label-container" [attr.data-ctx-label-name]="label.name">
                   <div class="label"><span>{{label.name}}</span>
                   <div class="cancel-icon pop" [attr.data-pop]="'accessibility.remove_label' | translate"
                   (click)="removeLabel(note,label)"></div>

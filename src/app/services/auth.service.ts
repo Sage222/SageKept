@@ -8,7 +8,7 @@ import { firstValueFrom, BehaviorSubject, timeout, merge, map } from 'rxjs';
 import { WorkspaceService } from './workspace.service';
 import type { KeptWorkspacePlugin } from './native-workspace.service';
 import { environment } from 'src/environments/environment';
-import { AuthSessionI, UserI, UserRole, UserTheme } from '../interfaces/users';
+import { AuthSessionI, USER_THEMES, UserI, UserRole, UserTheme, VALID_USER_THEMES } from '../interfaces/users';
 
 type LoginResponse = {
   token?: string
@@ -158,7 +158,10 @@ export class AuthService implements OnDestroy {
 
   get effectiveTheme(): UserTheme {
     if (this.followsSystemTheme) return this.systemThemeQuery?.matches ? 'dark' : 'light';
-    return (this.isLocal ? this.workspace.local?.preferences.theme : this.currentUser?.theme) || 'light';
+    const raw = (this.isLocal ? this.workspace.local?.preferences.theme : this.currentUser?.theme)
+      || (typeof localStorage !== 'undefined' ? (localStorage.getItem('kept_selected_theme') as UserTheme | null) : null)
+      || 'light';
+    return VALID_USER_THEMES.includes(raw) ? raw : 'light';
   }
 
   get currentUser() {
@@ -574,7 +577,10 @@ export class AuthService implements OnDestroy {
   }
 
   async updateTheme(theme: UserTheme) {
-    await this.updateAccountPreferences({ theme, followSystemTheme: false });
+    const validTheme: UserTheme = VALID_USER_THEMES.includes(theme) ? theme : 'light';
+    try { localStorage.setItem('kept_selected_theme', validTheme); } catch {}
+    await this.updateAccountPreferences({ theme: validTheme, followSystemTheme: false });
+    this.applyTheme();
   }
 
   async setFollowSystemTheme(enabled: boolean) {
@@ -582,6 +588,7 @@ export class AuthService implements OnDestroy {
       followSystemTheme: enabled,
       ...(!enabled ? { theme: this.effectiveTheme } : {})
     });
+    this.applyTheme();
   }
 
   async loadAccountPreferences() {
@@ -936,8 +943,13 @@ export class AuthService implements OnDestroy {
 
   private applyTheme() {
     const theme = this.effectiveTheme;
-    document.body.classList.toggle('light-theme', theme === 'light');
-    document.documentElement.style.colorScheme = theme;
+    const isLightFamily = theme === 'light' || theme === 'sepia';
+    document.body.classList.toggle('light-theme', isLightFamily);
+    document.body.classList.toggle('dark-theme', !isLightFamily);
+    for (const meta of USER_THEMES) {
+      document.body.classList.toggle(`theme-${meta.id}`, theme === meta.id);
+    }
+    document.documentElement.style.colorScheme = isLightFamily ? 'light' : 'dark';
   }
 
   private getStoredSession() {

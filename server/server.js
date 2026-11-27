@@ -4402,7 +4402,7 @@ app.patch('/api/users/me/preferences', requireAuth, asyncRoute(async (req, res) 
     assignments.push('language = ?'); params.push(language);
   }
   if (req.body.theme !== undefined) {
-    if (!['light', 'dark'].includes(req.body.theme)) return res.status(400).json({ error: 'Invalid theme.' });
+    if (!['light', 'dark', 'sage', 'ocean', 'sepia', 'nord', 'rose'].includes(req.body.theme)) return res.status(400).json({ error: 'Invalid theme.' });
     assignments.push('theme = ?');
     params.push(req.body.theme);
     // Older clients only send theme when the user manually toggles appearance.

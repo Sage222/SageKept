@@ -132,6 +132,8 @@ export class SharedService {
   searchScope = new BehaviorSubject<'all' | 'current'>(this.initialSearchScope())
   searchQuery = ''
   openBinderModalForParent = new Subject<string | null>()
+  openEditLabelsModal = new Subject<void>()
+  openNoteById = new Subject<number>()
   includeSubBinderNotes = new BehaviorSubject<boolean>(this.initialIncludeSubBinderNotes())
   // Keep an autosaved inline draft out of this tab's overview until closed.
   composerDraftSyncId?: string

@@ -1,3 +1,4 @@
+import { UserTheme } from './users';
 export type ResourceType = 'note' | 'reminder' | 'attachment' | 'label' | 'binder' | 'savedPlace' | 'preferences';
 export const RESOURCE_STORES: Record<ResourceType, string> = {
   note: 'notes', reminder: 'reminders', attachment: 'attachments', label: 'labels',
@@ -7,7 +8,7 @@ export type WorkspacePreferences = {
   defaultNoteColor?: string;
   language?: string;
   inheritSharedLabels?: boolean; inheritSharedBinders?: boolean;
-  theme: 'light' | 'dark'; followSystemTheme: boolean; showPastReminders: boolean;
+  theme: UserTheme; followSystemTheme: boolean; showPastReminders: boolean;
 };
 export interface Workspace {
   id: string;

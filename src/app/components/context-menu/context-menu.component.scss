@@ -1,0 +1,371 @@
+.sage-ctx-menu {
+  position: fixed;
+  z-index: 12000;
+  min-width: 244px;
+  max-width: 310px;
+  max-height: min(460px, calc(100vh - 20px));
+  overflow-y: auto;
+  border-radius: 14px;
+  background: var(--ctx-bg, #282a2e);
+  color: var(--ctx-ink, #e8eaed);
+  border: 1px solid var(--ctx-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42), 0 4px 12px rgba(0, 0, 0, 0.24);
+  padding: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+  backdrop-filter: blur(14px);
+  animation: sageCtxPop 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:host-context(.light-theme) .sage-ctx-menu {
+  --ctx-bg: #ffffff;
+  --ctx-ink: #202124;
+  --ctx-border: rgba(60, 64, 67, 0.16);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16), 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+
+@keyframes sageCtxPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.sage-ctx-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  border-bottom: 1px solid var(--ctx-border, rgba(255, 255, 255, 0.1));
+  margin-bottom: 4px;
+}
+
+.sage-ctx-header-icon {
+  font-size: 16px;
+}
+
+.sage-ctx-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sage-ctx-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sage-ctx-divider {
+  height: 1px;
+  background: var(--ctx-border, rgba(255, 255, 255, 0.1));
+  margin: 4px 6px;
+}
+
+.sage-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(138, 180, 248, 0.14);
+    outline: none;
+  }
+
+  &.is-danger {
+    color: #f28b82;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(242, 139, 130, 0.15);
+    }
+  }
+}
+
+:host-context(.light-theme) .sage-ctx-item {
+  &:hover,
+  &:focus-visible {
+    background: rgba(26, 115, 232, 0.09);
+  }
+
+  &.is-danger {
+    color: #d93025;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(217, 48, 37, 0.09);
+    }
+  }
+}
+
+.sage-ctx-item-icon {
+  font-size: 18px;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.sage-ctx-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sage-ctx-item-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* In-app dialog for rename / create / delete / move */
+.sage-ctx-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12100;
+  background: rgba(0, 0, 0, 0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sage-ctx-dialog {
+  width: 100%;
+  max-width: 410px;
+  border-radius: 16px;
+  background: #282a2e;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.45);
+  padding: 18px 20px;
+}
+
+:host-context(.light-theme) .sage-ctx-dialog {
+  background: #ffffff;
+  color: #202124;
+  border-color: rgba(60, 64, 67, 0.18);
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.18);
+}
+
+.sage-ctx-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+  }
+}
+
+.sage-ctx-dialog-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: inline-flex;
+
+  &:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.15);
+  }
+}
+
+.sage-ctx-dialog-subtitle {
+  margin: 6px 0 14px;
+  font-size: 13px;
+  opacity: 0.76;
+  line-height: 1.45;
+}
+
+.sage-ctx-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sage-ctx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  span {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.82;
+  }
+
+  input,
+  select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.32);
+    background: rgba(0, 0, 0, 0.18);
+    color: inherit;
+    font-size: 14px;
+    font-family: inherit;
+
+    &:focus {
+      outline: 2px solid #8ab4f8;
+      border-color: transparent;
+    }
+  }
+}
+
+:host-context(.light-theme) .sage-ctx-field {
+  input,
+  select {
+    background: #f8fafc;
+    border-color: rgba(60, 64, 67, 0.24);
+
+    &:focus {
+      outline-color: #1a73e8;
+    }
+  }
+}
+
+.sage-ctx-error {
+  font-size: 12.5px;
+  color: #f28b82;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(242, 139, 130, 0.12);
+}
+
+:host-context(.light-theme) .sage-ctx-error {
+  color: #d93025;
+  background: rgba(217, 48, 37, 0.08);
+}
+
+.sage-ctx-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sage-ctx-quick-add {
+  display: flex;
+  gap: 8px;
+
+  input {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.32);
+    background: rgba(0, 0, 0, 0.18);
+    color: inherit;
+    font-size: 13.5px;
+  }
+}
+
+:host-context(.light-theme) .sage-ctx-quick-add input {
+  background: #f8fafc;
+}
+
+.sage-ctx-picker-list {
+  max-height: 230px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.sage-ctx-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  text-align: left;
+
+  &:hover {
+    background: rgba(138, 180, 248, 0.12);
+  }
+
+  &.is-active {
+    background: rgba(138, 180, 248, 0.18);
+    font-weight: 600;
+  }
+
+  .check {
+    margin-left: auto;
+    font-size: 18px;
+  }
+}
+
+.sage-ctx-empty {
+  margin: 12px;
+  font-size: 13px;
+  opacity: 0.7;
+  text-align: center;
+}
+
+.sage-ctx-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+
+  button {
+    border: 0;
+    border-radius: 9px;
+    padding: 8px 15px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn-secondary {
+    background: rgba(128, 128, 128, 0.18);
+    color: inherit;
+  }
+
+  .btn-primary {
+    background: #8ab4f8;
+    color: #111827;
+  }
+
+  .btn-danger {
+    background: #e11d48;
+    color: #ffffff;
+  }
+}

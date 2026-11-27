@@ -426,7 +426,7 @@
         <div class="preference-row">
           <div class="preference-info">
             <span class="preference-label">{{ 'settings.follow_system_appearance' | translate }}</span>
-            <span class="preference-desc">{{ 'settings.match_this_device_s_light_or_dark_appearance_using_the_theme_togg' | translate }}</span>
+            <span class="preference-desc">Automatically switch between Classic Light and Classic Dark based on your system settings, or choose from 7 custom themes below.</span>
           </div>
           <label class="toggle-label">
             <input type="checkbox" [attr.aria-label]="'settings.follow_system_appearance' | translate"
@@ -436,10 +436,47 @@
           </label>
         </div>
 
+        <div class="preference-row preference-row--stacked">
+          <div class="preference-info">
+            <span class="preference-label">App Theme</span>
+            <span class="preference-desc">Select a visual theme for SageKept. Selecting a theme disables "Follow system appearance".</span>
+          </div>
+          <div class="theme-picker-grid" role="radiogroup" aria-label="App Theme">
+            @for (theme of themeOptions; track theme.id) {
+              @let isSelected = !authService.followsSystemTheme && authService.effectiveTheme === theme.id;
+              @let isEffective = authService.effectiveTheme === theme.id;
+              <button type="button" class="theme-option-card"
+                role="radio"
+                [attr.aria-checked]="isSelected"
+                [class.is-selected]="isSelected"
+                [class.is-effective]="isEffective"
+                [disabled]="isSavingThemePreference"
+                (click)="selectTheme(theme.id)">
+                <div class="theme-swatch-preview" [style.background]="theme.bg">
+                  <div class="theme-swatch-sidebar" [style.background]="theme.surface"></div>
+                  <div class="theme-swatch-card" [style.background]="theme.surface">
+                    <span class="theme-swatch-title" [style.background]="theme.text"></span>
+                    <span class="theme-swatch-accent" [style.background]="theme.accent"></span>
+                  </div>
+                </div>
+                <div class="theme-option-meta">
+                  <div class="theme-option-title-row">
+                    <span class="theme-option-name">{{theme.name}}</span>
+                    @if (isEffective) {
+                      <span class="material-symbols-outlined theme-active-check" aria-hidden="true">check_circle</span>
+                    }
+                  </div>
+                  <span class="theme-option-desc">{{theme.description}}</span>
+                </div>
+              </button>
+            }
+          </div>
+        </div>
+
         <div class="preference-row">
           <div class="preference-info">
             <span class="preference-label">Hide all left-hand menu items</span>
-            <span class="preference-desc">Hide all navigation items, labels, and binders in the left-hand sidebar column. You can still return to Settings from your profile menu.</span>
+            <span class="preference-desc">Hide the entire left-hand sidebar column at once. You can also hide or restore individual menu items below or via right-click / touch-and-hold.</span>
           </div>
           <label class="toggle-label">
             <input type="checkbox" aria-label="Hide all left-hand menu items"
@@ -447,6 +484,120 @@
               (change)="toggleHideAllSidebarMenuItems($event)">
             <span class="toggle-text">{{(hideAllSidebarMenuItems) ? ('common.enabled' | translate) : ('common.disabled' | translate)}}</span>
           </label>
+        </div>
+
+        <div class="preference-row preference-row--stacked">
+          <div class="preference-header-with-action">
+            <div class="preference-info">
+              <span class="preference-label">Left-hand column menu items</span>
+              <span class="preference-desc">Hide or put back individual menu items, binders, and labels in the left-hand sidebar. Tip: You can also right-click (or hold down on touchscreens) on any item in the sidebar to hide it.</span>
+            </div>
+            @if (totalHiddenSidebarItemsCount > 0 || hideAllSidebarMenuItems) {
+              <button type="button" class="btn-secondary restore-all-menu-btn" (click)="restoreAllHiddenSidebarItems()">
+                <span class="material-symbols-outlined" aria-hidden="true">restore</span>
+                <span>Put back all ({{ totalHiddenSidebarItemsCount }})</span>
+              </button>
+            }
+          </div>
+
+          <div class="sidebar-items-manager">
+            <div class="sidebar-items-group-label">Navigation sections</div>
+            <div class="sidebar-items-grid">
+              @for (item of controllableCoreSidebarItems; track item.id) {
+                @let hidden = isSidebarItemHidden(item.id);
+                <div class="sidebar-item-control" [class.is-hidden]="hidden">
+                  <div class="sidebar-item-control-info">
+                    <span class="material-symbols-outlined sidebar-item-icon" aria-hidden="true">{{item.icon}}</span>
+                    <span class="sidebar-item-name">{{item.label}}</span>
+                    <span class="sidebar-item-status-badge" [class.badge-hidden]="hidden">
+                      {{ hidden ? 'Hidden' : 'Visible' }}
+                    </span>
+                  </div>
+                  <button type="button" class="sidebar-item-toggle-btn"
+                    [class.btn-put-back]="hidden"
+                    (click)="toggleSidebarItemVisibility(item.id)">
+                    <span class="material-symbols-outlined" aria-hidden="true">{{ hidden ? 'visibility' : 'visibility_off' }}</span>
+                    <span>{{ hidden ? 'Put back' : 'Hide' }}</span>
+                  </button>
+                </div>
+              }
+            </div>
+
+            @if (Shared.binder.treeList.length > 0) {
+              <div class="sidebar-items-group-label">Individual Binders</div>
+              <div class="sidebar-items-grid">
+                @for (binder of Shared.binder.treeList; track binder.name) {
+                  @let itemId = 'binder:' + binder.name.toLowerCase();
+                  @let hidden = isSidebarItemHidden(itemId);
+                  <div class="sidebar-item-control" [class.is-hidden]="hidden">
+                    <div class="sidebar-item-control-info">
+                      <span class="material-symbols-outlined sidebar-item-icon" aria-hidden="true">{{ binder.depth > 0 ? 'subdirectory_arrow_right' : 'folder' }}</span>
+                      <span class="sidebar-item-name">{{binder.name}}</span>
+                      <span class="sidebar-item-status-badge" [class.badge-hidden]="hidden">
+                        {{ hidden ? 'Hidden' : 'Visible' }}
+                      </span>
+                    </div>
+                    <button type="button" class="sidebar-item-toggle-btn"
+                      [class.btn-put-back]="hidden"
+                      (click)="toggleSidebarItemVisibility(itemId)">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ hidden ? 'visibility' : 'visibility_off' }}</span>
+                      <span>{{ hidden ? 'Put back' : 'Hide' }}</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (Shared.sharedBinders.length > 0) {
+              <div class="sidebar-items-group-label">Shared Binders</div>
+              <div class="sidebar-items-grid">
+                @for (binder of Shared.sharedBinders; track binder.id) {
+                  @let itemId = 'shared-binder:' + binder.id;
+                  @let hidden = isSidebarItemHidden(itemId);
+                  <div class="sidebar-item-control" [class.is-hidden]="hidden">
+                    <div class="sidebar-item-control-info">
+                      <span class="material-symbols-outlined sidebar-item-icon" aria-hidden="true">folder_shared</span>
+                      <span class="sidebar-item-name">{{binder.name}}</span>
+                      <span class="sidebar-item-status-badge" [class.badge-hidden]="hidden">
+                        {{ hidden ? 'Hidden' : 'Visible' }}
+                      </span>
+                    </div>
+                    <button type="button" class="sidebar-item-toggle-btn"
+                      [class.btn-put-back]="hidden"
+                      (click)="toggleSidebarItemVisibility(itemId)">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ hidden ? 'visibility' : 'visibility_off' }}</span>
+                      <span>{{ hidden ? 'Put back' : 'Hide' }}</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (Shared.label.list.length > 0) {
+              <div class="sidebar-items-group-label">Individual Labels</div>
+              <div class="sidebar-items-grid">
+                @for (label of Shared.label.list; track label.name) {
+                  @let itemId = 'label:' + label.name.toLowerCase();
+                  @let hidden = isSidebarItemHidden(itemId);
+                  <div class="sidebar-item-control" [class.is-hidden]="hidden">
+                    <div class="sidebar-item-control-info">
+                      <span class="material-symbols-outlined sidebar-item-icon" aria-hidden="true">label</span>
+                      <span class="sidebar-item-name">{{label.name}}</span>
+                      <span class="sidebar-item-status-badge" [class.badge-hidden]="hidden">
+                        {{ hidden ? 'Hidden' : 'Visible' }}
+                      </span>
+                    </div>
+                    <button type="button" class="sidebar-item-toggle-btn"
+                      [class.btn-put-back]="hidden"
+                      (click)="toggleSidebarItemVisibility(itemId)">
+                      <span class="material-symbols-outlined" aria-hidden="true">{{ hidden ? 'visibility' : 'visibility_off' }}</span>
+                      <span>{{ hidden ? 'Put back' : 'Hide' }}</span>
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
         </div>
 
         <div class="preference-row">

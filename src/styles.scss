@@ -3915,3 +3915,228 @@ pre.kept-code .kept-code-input {
 }
 
 app-input .kept-code-leading-line { min-height: 24px; cursor: text; }
+
+/* ── SageKept Custom Themes (5 Additional Themes) ───────────────────────── */
+
+body.theme-sage {
+  --sage-bg: #111c16;
+  --sage-surface: #18271f;
+  --sage-elevated: #203329;
+  --sage-border: #2c4638;
+  --sage-text: #e6f4ea;
+  --sage-muted: #9bb8a5;
+  --sage-accent: #34d399;
+  --sage-active-pill: rgba(52, 211, 153, 0.2);
+}
+
+body.theme-ocean {
+  --sage-bg: #0b1528;
+  --sage-surface: #13223d;
+  --sage-elevated: #1b2f52;
+  --sage-border: #26406e;
+  --sage-text: #e2e8f0;
+  --sage-muted: #94a3b8;
+  --sage-accent: #38bdf8;
+  --sage-active-pill: rgba(56, 189, 248, 0.2);
+}
+
+body.theme-nord {
+  --sage-bg: #242933;
+  --sage-surface: #2e3440;
+  --sage-elevated: #3b4252;
+  --sage-border: #4c566a;
+  --sage-text: #eceff4;
+  --sage-muted: #d8dee9;
+  --sage-accent: #88c0d0;
+  --sage-active-pill: rgba(136, 192, 208, 0.22);
+}
+
+body.theme-rose {
+  --sage-bg: #1c131a;
+  --sage-surface: #291c26;
+  --sage-elevated: #382634;
+  --sage-border: #4e3548;
+  --sage-text: #fce7f3;
+  --sage-muted: #d8b4c8;
+  --sage-accent: #f472b6;
+  --sage-active-pill: rgba(244, 114, 182, 0.2);
+}
+
+body.theme-sage,
+body.theme-ocean,
+body.theme-nord,
+body.theme-rose {
+  background-color: var(--sage-bg) !important;
+  color: var(--sage-text);
+
+  .main,
+  .auth-page,
+  .settings-page {
+    background-color: var(--sage-bg) !important;
+    color: var(--sage-text);
+  }
+
+  app-navbar .main-container,
+  app-navbar .selection-navbar {
+    background-color: var(--sage-bg) !important;
+    border-bottom-color: var(--sage-border) !important;
+  }
+
+  app-navbar .navbar .sec-col .form-container .form,
+  app-navbar .filters-btn {
+    background-color: var(--sage-surface) !important;
+    border-color: var(--sage-border) !important;
+    color: var(--sage-text) !important;
+  }
+
+  app-navbar .filters-dropdown,
+  app-navbar .profile-menu {
+    background-color: var(--sage-surface) !important;
+    border-color: var(--sage-border) !important;
+    color: var(--sage-text) !important;
+  }
+
+  app-sidenav .main-sidebar {
+    background-color: var(--sage-bg) !important;
+  }
+
+  app-sidenav .main-sidebar .item.active {
+    background-color: var(--sage-active-pill) !important;
+    color: var(--sage-text) !important;
+  }
+
+  app-sidenav .main-sidebar .item:not(.active):hover {
+    background-color: var(--sage-surface) !important;
+  }
+
+  app-input .main-container .note {
+    background-color: var(--sage-surface);
+    border-color: var(--sage-border) !important;
+  }
+
+  app-notes .main-container .note-container .note-main:not([style*="background-color: rgb"]),
+  app-notes .binder-hierarchy-bar,
+  app-notes .sub-binder-card {
+    border-color: var(--sage-border);
+  }
+
+  app-notes .binder-hierarchy-bar {
+    background-color: var(--sage-surface) !important;
+  }
+
+  app-notes .sub-binder-card {
+    background-color: var(--sage-elevated) !important;
+  }
+
+  .settings-group,
+  .auth-panel {
+    background-color: var(--sage-surface) !important;
+    border-color: var(--sage-border) !important;
+  }
+
+  .preference-row,
+  .settings-section {
+    border-top-color: var(--sage-border) !important;
+  }
+
+  .sage-ctx-menu,
+  .sage-ctx-dialog,
+  app-sidenav .modal,
+  app-notes .modal {
+    background-color: var(--sage-surface) !important;
+    border-color: var(--sage-border) !important;
+    color: var(--sage-text) !important;
+  }
+}
+
+/* Warm Sepia (Light-family theme) */
+body.light-theme.theme-sepia {
+  --sepia-bg: #f6f0e4;
+  --sepia-surface: #fdf9f0;
+  --sepia-elevated: #efe6d4;
+  --sepia-border: #dccfb8;
+  --sepia-text: #3d3124;
+  --sepia-muted: #6e5c47;
+  --sepia-accent: #b45309;
+  --sepia-active-pill: #ead9bc;
+
+  background-color: var(--sepia-bg) !important;
+  color: var(--sepia-text) !important;
+
+  .main,
+  .auth-page,
+  .settings-page {
+    background-color: var(--sepia-bg) !important;
+    color: var(--sepia-text) !important;
+  }
+
+  app-navbar .main-container,
+  app-navbar .selection-navbar {
+    background-color: var(--sepia-bg) !important;
+    border-bottom-color: var(--sepia-border) !important;
+  }
+
+  app-navbar .navbar .sec-col .form-container .form,
+  app-navbar .filters-btn {
+    background-color: var(--sepia-elevated) !important;
+    border-color: var(--sepia-border) !important;
+    color: var(--sepia-text) !important;
+  }
+
+  app-navbar .filters-dropdown,
+  app-navbar .profile-menu {
+    background-color: var(--sepia-surface) !important;
+    border-color: var(--sepia-border) !important;
+    color: var(--sepia-text) !important;
+  }
+
+  app-sidenav .main-sidebar {
+    background-color: var(--sepia-bg) !important;
+  }
+
+  app-sidenav .main-sidebar .item.active {
+    background-color: var(--sepia-active-pill) !important;
+    color: var(--sepia-text) !important;
+  }
+
+  app-sidenav .main-sidebar .item:not(.active):hover {
+    background-color: var(--sepia-elevated) !important;
+  }
+
+  app-input .main-container .note {
+    background-color: var(--sepia-surface);
+    border-color: var(--sepia-border) !important;
+  }
+
+  app-notes .binder-hierarchy-bar {
+    background-color: var(--sepia-surface) !important;
+    border-color: var(--sepia-border) !important;
+  }
+
+  app-notes .sub-binder-card {
+    background-color: var(--sepia-elevated) !important;
+    border-color: var(--sepia-border) !important;
+  }
+
+  .settings-group,
+  .auth-panel {
+    background-color: var(--sepia-surface) !important;
+    border-color: var(--sepia-border) !important;
+  }
+
+  .theme-option-card,
+  .sidebar-item-control {
+    background-color: var(--sepia-bg) !important;
+    border-color: var(--sepia-border) !important;
+  }
+
+  .sage-ctx-menu,
+  .sage-ctx-dialog,
+  app-sidenav .modal,
+  app-notes .modal {
+    background-color: var(--sepia-surface) !important;
+    border-color: var(--sepia-border) !important;
+    color: var(--sepia-text) !important;
+  }
+}
+

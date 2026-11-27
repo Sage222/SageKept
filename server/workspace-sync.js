@@ -146,7 +146,7 @@ function createWorkspaceSync(deps) {
         patch.defaultNoteColor = payload.defaultNoteColor.toLowerCase();
       }
       for (const key of ['theme','followSystemTheme','showPastReminders','inheritSharedLabels','inheritSharedBinders']) if (payload[key] !== undefined) patch[key] = payload[key];
-      if ((patch.theme !== undefined && !['light','dark'].includes(patch.theme)) || ['followSystemTheme','showPastReminders','inheritSharedLabels','inheritSharedBinders'].some(key => patch[key] !== undefined && typeof patch[key] !== 'boolean')) return { ok:false, error:'Invalid account preference.' };
+      if ((patch.theme !== undefined && !['light','dark','sage','ocean','sepia','nord','rose'].includes(patch.theme)) || ['followSystemTheme','showPastReminders','inheritSharedLabels','inheritSharedBinders'].some(key => patch[key] !== undefined && typeof patch[key] !== 'boolean')) return { ok:false, error:'Invalid account preference.' };
       if (Object.keys(patch).length) await run(`UPDATE users SET ${Object.keys(patch).map(key => `${key} = ?`).join(',')} WHERE id = ?`, [...Object.values(patch).map(value => typeof value === 'boolean' ? Number(value) : value),userId]);
       await deps.sharedOrganization.preferencesChanged(userId, patch);
       const user = publicUser(await get('SELECT * FROM users WHERE id = ?', [userId]));
