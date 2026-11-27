@@ -100,6 +100,7 @@ export class SharedService {
           await this.createExampleNotes()
         }
         this.Notes.load().catch(console.error)
+        this.binders.load().catch(console.error)
         if (navigator.onLine) this.Labels.load().catch(console.error)
       } else {
         // Logout: clear the in-memory mirror so the next user doesn't
@@ -132,6 +133,7 @@ export class SharedService {
   searchScope = new BehaviorSubject<'all' | 'current'>(this.initialSearchScope())
   searchQuery = ''
   openBinderModalForParent = new Subject<string | null>()
+  expandBinderBranch = new Subject<string>()
   openEditLabelsModal = new Subject<void>()
   openNoteById = new Subject<number>()
   includeSubBinderNotes = new BehaviorSubject<boolean>(this.initialIncludeSubBinderNotes())
@@ -226,6 +228,7 @@ export class SharedService {
     await Promise.all([
       this.Notes.load(),
       this.Labels.load(),
+      this.binders.load(),
       this.reminders.load()
     ])
   }
@@ -319,29 +322,44 @@ export class SharedService {
 
   refreshBinderList() {
     const names = [
-      ...(this.binders.sync.writesLocally ? this.binders.items$.value.map(item => item.name) : this.storedBinders()),
+      ...this.binders.items$.value.map(item => item.name),
+      ...this.storedBinders(),
       ...(this.note.all || []).filter(note => !note.sharedBinder || note.sharedBinder.ownerUserId === this.auth.currentUser?.id || this.auth.currentUser?.inheritSharedBinders === false).map(note => note.binder || '').filter(Boolean)
     ];
     const unique: { name: string; parentName?: string | null; sortOrder?: number | null; memberCount?: number }[] = [];
     const customLegacyOrder = !this.binders.sync.writesLocally && localStorage.getItem(`${this.binderStoragePartition()}:custom-order`) === '1';
-    const legacyParents = this.binders.sync.writesLocally ? {} : this.storedBinderParents();
+    const legacyParents = this.storedBinderParents();
     const catalog = new Map(this.binders.items$.value.map(item => [item.name.toLowerCase(), item]));
     const seen = new Set<string>();
-    for (const name of names) {
-      const clean = String(name || '').trim();
-      if (!clean) continue;
+
+    const addBinderEntry = (rawName: string) => {
+      const clean = String(rawName || '').trim();
+      if (!clean) return;
       const key = clean.toLowerCase();
-      if (seen.has(key)) continue;
+      if (seen.has(key)) return;
       seen.add(key);
-      const rawParent = this.binders.sync.writesLocally
-        ? (catalog.get(key)?.parentName || null)
+      const catalogItem = catalog.get(key);
+      const rawParent = (catalogItem?.parentName !== undefined && catalogItem?.parentName !== null && String(catalogItem.parentName).trim() !== '')
+        ? catalogItem.parentName
         : (legacyParents[key] || null);
+      const cleanParent = rawParent ? String(rawParent).trim() : null;
       unique.push({
         name: clean,
-        parentName: rawParent ? String(rawParent).trim() : null,
-        memberCount: catalog.get(key)?.memberCount || 0,
-        sortOrder: this.binders.sync.writesLocally ? catalog.get(key)?.sortOrder : customLegacyOrder ? names.indexOf(name) : null
+        parentName: cleanParent && cleanParent.toLowerCase() !== key ? cleanParent : null,
+        memberCount: catalogItem?.memberCount || 0,
+        sortOrder: this.binders.sync.writesLocally ? catalogItem?.sortOrder : customLegacyOrder ? names.indexOf(rawName) : null
       });
+    };
+
+    for (const name of names) {
+      addBinderEntry(name);
+    }
+    // Ensure any parent binder referenced by a child sub-binder is also in unique so buildBinderTree always nests it properly
+    for (let i = 0; i < unique.length; i++) {
+      const parentName = unique[i].parentName;
+      if (parentName && !seen.has(parentName.toLowerCase())) {
+        addBinderEntry(parentName);
+      }
     }
     unique.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     this.binder.list = unique;
@@ -662,22 +680,33 @@ export class SharedService {
     treeList: [] as BinderTreeNode[],
     db: {
       reorder: async (names: string[]) => {
-        if (this.binders.sync.writesLocally) return this.binders.reorder(names);
         this.saveStoredBinders(names);
-        localStorage.setItem(`${this.binderStoragePartition()}:custom-order`, '1');
+        if (!this.binders.sync.writesLocally) {
+          localStorage.setItem(`${this.binderStoragePartition()}:custom-order`, '1');
+        } else {
+          await this.binders.reorder(names);
+        }
         this.refreshBinderList();
       },
       add: async (name: string, parentName?: string | null) => {
-        if (this.binders.sync.writesLocally) return this.binders.save(name, undefined, parentName);
         const clean = String(name || '').trim();
         if (!clean) return;
-        const names = this.storedBinders();
+        const existing = this.binder.list.find(item => item.name.toLowerCase() === clean.toLowerCase());
+        const effectiveParent = parentName === undefined ? (existing?.parentName ?? undefined) : parentName;
+        const names = [...this.storedBinders()];
         if (!names.some(item => item.toLowerCase() === clean.toLowerCase())) {
-          this.saveStoredBinders([...names, clean]);
+          names.push(clean);
         }
-        if (parentName !== undefined) {
+        if (effectiveParent) {
+          const cleanParent = String(effectiveParent).trim();
+          if (cleanParent && !names.some(item => item.toLowerCase() === cleanParent.toLowerCase())) {
+            names.push(cleanParent);
+          }
+        }
+        this.saveStoredBinders(names);
+        if (effectiveParent !== undefined) {
           const parents = this.storedBinderParents();
-          const cleanParent = String(parentName || '').trim();
+          const cleanParent = String(effectiveParent || '').trim();
           if (cleanParent && cleanParent.toLowerCase() !== clean.toLowerCase()) {
             parents[clean.toLowerCase()] = cleanParent;
           } else {
@@ -685,10 +714,15 @@ export class SharedService {
           }
           this.saveStoredBinderParents(parents);
         }
+        if (this.binders.sync.writesLocally) {
+          await this.binders.save(clean, undefined, effectiveParent);
+        }
         this.refreshBinderList();
+        if (effectiveParent && String(effectiveParent).trim()) {
+          this.expandBinderBranch.next(String(effectiveParent).trim());
+        }
       },
       update: async (oldName: string, newName: string, parentName?: string | null) => {
-        if (this.binders.sync.writesLocally) return this.binders.save(newName, oldName, parentName);
         const oldClean = String(oldName || '').trim();
         const newClean = String(newName || '').trim();
         if (!oldClean || !newClean) return;
@@ -714,13 +748,16 @@ export class SharedService {
           }
         }
         this.saveStoredBinderParents(parents);
-        for (const note of this.note.all.filter(note => (note.binder || '').toLowerCase() === oldKey)) {
-          if (note.id) await this.Notes.updateKey({ binder: newClean }, note.id);
+        if (this.binders.sync.writesLocally) {
+          await this.binders.save(newClean, oldClean, parentName);
+        } else {
+          for (const note of this.note.all.filter(note => (note.binder || '').toLowerCase() === oldKey)) {
+            if (note.id) await this.Notes.updateKey({ binder: newClean }, note.id);
+          }
         }
         this.refreshBinderList();
       },
       setParent: async (name: string, parentName: string | null) => {
-        if (this.binders.sync.writesLocally) return this.binders.setParent(name, parentName);
         const clean = String(name || '').trim();
         if (!clean) return;
         const cleanParent = parentName ? String(parentName).trim() : null;
@@ -731,10 +768,15 @@ export class SharedService {
         if (cleanParent) parents[clean.toLowerCase()] = cleanParent;
         else delete parents[clean.toLowerCase()];
         this.saveStoredBinderParents(parents);
+        if (this.binders.sync.writesLocally) {
+          await this.binders.setParent(clean, cleanParent);
+        }
         this.refreshBinderList();
+        if (cleanParent) {
+          this.expandBinderBranch.next(cleanParent);
+        }
       },
       delete: async (name: string) => {
-        if (this.binders.sync.writesLocally) return this.binders.delete(name);
         const clean = String(name || '').trim();
         if (!clean) return;
         const key = clean.toLowerCase();
@@ -749,8 +791,12 @@ export class SharedService {
           }
         }
         this.saveStoredBinderParents(parents);
-        for (const note of this.note.all.filter(note => (note.binder || '').toLowerCase() === key)) {
-          if (note.id) await this.Notes.updateKey({ binder: '' }, note.id);
+        if (this.binders.sync.writesLocally) {
+          await this.binders.delete(clean);
+        } else {
+          for (const note of this.note.all.filter(note => (note.binder || '').toLowerCase() === key)) {
+            if (note.id) await this.Notes.updateKey({ binder: '' }, note.id);
+          }
         }
         this.refreshBinderList();
       }

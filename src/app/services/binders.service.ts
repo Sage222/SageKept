@@ -20,6 +20,7 @@ export interface BinderSharingInfo {
 export class BindersService {
   private migratingLegacy = false;
   private loadRevision = 0;
+  private loadedPartition = '';
   readonly items$ = new BehaviorSubject<CatalogItem[]>([]);
   readonly sharedItems$ = new BehaviorSubject<CatalogItem[]>([]);
   constructor(private store: OfflineStoreService, public sync: OfflineSyncService,private auth: AuthService, private http: HttpClient) {
@@ -27,7 +28,12 @@ export class BindersService {
   }
   async load() {
     const revision = ++this.loadRevision;
-    if (!this.sync.partition) { this.items$.next([]); this.sharedItems$.next([]); return; }
+    if (!this.sync.partition) {
+      this.loadedPartition = '';
+      this.items$.next([]);
+      this.sharedItems$.next([]);
+      return;
+    }
     const partition = this.sync.partition;
     let items = await this.store.listResources<CatalogItem>('binder', partition);
     if (partition !== this.sync.partition || revision !== this.loadRevision) return;
@@ -39,10 +45,18 @@ export class BindersService {
         this.migratingLegacy = true;
         try {
           const names = JSON.parse(localStorage.getItem(legacyKey) || '[]');
+          let legacyParents: Record<string, string> = {};
+          try {
+            const parsedParents = JSON.parse(localStorage.getItem(`${legacyKey}:parents`) || '{}');
+            if (parsedParents && typeof parsedParents === 'object') legacyParents = parsedParents;
+          } catch {}
           for (const [index, name] of names.entries()) if (typeof name === 'string' && name.trim() && !items.some(item=>item.name.toLowerCase() === name.trim().toLowerCase())) {
             if (partition !== this.sync.partition) return;
+            const cleanLegacyName = name.trim().slice(0, 80);
+            const legacyParent = legacyParents[cleanLegacyName.toLowerCase()];
             await this.sync.commit('binder.upsert',`binder-${createUuid()}`,{
-              name:name.trim().slice(0,80),
+              name: cleanLegacyName,
+              ...(legacyParent ? { parentName: String(legacyParent).trim().slice(0, 80) } : {}),
               ...(localStorage.getItem(`${legacyKey}:custom-order`) === '1' ? { sortOrder: index } : {})
             });
           }
@@ -52,10 +66,16 @@ export class BindersService {
       }
     }
     if (partition !== this.sync.partition || revision !== this.loadRevision) return;
+    this.loadedPartition = partition;
     this.sharedItems$.next(items.filter(item => item.shared).sort((a,b) => a.name.localeCompare(b.name) || a.id-b.id));
     items = [...new Map(items.filter(item=>!item.shared).map(item=>[item.name.toLowerCase(),item])).values()];
     this.items$.next(items.sort((a, b) =>
       (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })));
+  }
+  private async ensureLoaded() {
+    if (this.loadedPartition !== this.sync.partition) {
+      await this.load();
+    }
   }
   private validateParent(name: string, oldName: string | undefined, parentName: string | null) {
     if (!parentName) return null;
@@ -80,6 +100,7 @@ export class BindersService {
   }
 
   async save(name: string, oldName?: string, parentName?: string | null) {
+    await this.ensureLoaded();
     const clean = name.trim().slice(0, 80);
     if (!clean) throw new Error('Binder name is required.');
     const previous = this.items$.value.find(item => item.name.toLowerCase() === (oldName || name).toLowerCase());
@@ -87,6 +108,13 @@ export class BindersService {
     const sortOrder = previous?.sortOrder ?? (ordered.length ? Math.max(...ordered.map(item => item.sortOrder!)) + 1 : null);
     const rawParent = parentName === undefined ? (previous?.parentName ?? null) : (String(parentName || '').trim().slice(0, 80) || null);
     const resolvedParent = this.validateParent(clean, oldName || previous?.name, rawParent);
+    if (resolvedParent && !this.items$.value.some(item => item.name.toLowerCase() === resolvedParent.toLowerCase())) {
+      await this.sync.commit('binder.upsert', `binder-${createUuid()}`, {
+        name: resolvedParent,
+        parentName: null,
+        sortOrder: null
+      });
+    }
     await this.sync.commit('binder.upsert', previous?.syncId || `binder-${createUuid()}`, {
       ...previous,
       name: clean,
@@ -107,6 +135,7 @@ export class BindersService {
     await this.save(name, name, parentName);
   }
   async reorder(names: string[]) {
+    await this.ensureLoaded();
     const partition = this.sync.partition;
     for (const [sortOrder, name] of names.entries()) {
       if (partition !== this.sync.partition) throw new Error('The active workspace changed.');
@@ -117,6 +146,7 @@ export class BindersService {
     await this.load();
   }
   async delete(name: string) {
+    await this.ensureLoaded();
     const previous = this.items$.value.find(item => item.name.toLowerCase() === name.toLowerCase());
     if (previous) {
       const promotedParent = previous.parentName || null;

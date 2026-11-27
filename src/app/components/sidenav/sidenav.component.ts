@@ -210,7 +210,11 @@ export class NavComponent implements OnInit, OnDestroy {
 
   openBinderModal(defaultParent: string | null = null) {
     this.binderEditError = '';
-    this.newBinderParent = defaultParent || '';
+    const requested = (defaultParent || '').trim();
+    const matched = requested
+      ? this.Shared.binder.treeList.find(node => node.name.toLowerCase() === requested.toLowerCase())?.name
+      : '';
+    this.newBinderParent = matched || requested;
     if (this.binderError?.nativeElement) this.binderError.nativeElement.hidden = true;
     this.binderModalContainer.nativeElement.style.display = 'block';
     void this.refreshSharingPreviews();
@@ -234,6 +238,20 @@ export class NavComponent implements OnInit, OnDestroy {
 
   isBinderBranchExpanded(name: string): boolean {
     return !this.collapsedBinderBranches[name.toLowerCase()];
+  }
+
+  expandBinderAndAncestors(binderName: string) {
+    const clean = String(binderName || '').trim();
+    if (!clean) return;
+    this.bindersExpanded = true;
+    this.saveSectionExpanded('binders', true);
+    const next = { ...this.collapsedBinderBranches };
+    delete next[clean.toLowerCase()];
+    for (const ancestor of this.Shared.getBinderAncestors(clean)) {
+      delete next[ancestor.toLowerCase()];
+    }
+    this.collapsedBinderBranches = next;
+    this.saveCollapsedBinderBranches();
   }
 
   toggleBinderBranch(name: string, event: Event) {
@@ -263,16 +281,13 @@ export class NavComponent implements OnInit, OnDestroy {
 
   changeBinderParent(name: string, parentName: string) {
     const cleanParent = (parentName || '').trim() || null;
-    if (cleanParent && this.collapsedBinderBranches[cleanParent.toLowerCase()]) {
-      const next = { ...this.collapsedBinderBranches };
-      delete next[cleanParent.toLowerCase()];
-      this.collapsedBinderBranches = next;
-      this.saveCollapsedBinderBranches();
+    if (cleanParent) {
+      this.expandBinderAndAncestors(cleanParent);
     }
     return this.changeBinder(() => this.Shared.binder.db.setParent(name, cleanParent));
   }
 
-  addBinder(el: HTMLInputElement) {
+  addBinder(el: HTMLInputElement, parentSelect?: HTMLSelectElement) {
     if (!el) return
     const name = el.value.trim()
     if (!name) return
@@ -282,16 +297,12 @@ export class NavComponent implements OnInit, OnDestroy {
       el.focus()
       return
     }
-    const parentName = this.newBinderParent.trim() || null;
+    const rawParent = parentSelect ? parentSelect.value : this.newBinderParent;
+    const parentName = (rawParent || '').trim() || null;
     this.Shared.binder.db.add(name, parentName)
       .then(() => {
         if (parentName) {
-          this.bindersExpanded = true;
-          this.saveSectionExpanded('binders', true);
-          const next = { ...this.collapsedBinderBranches };
-          delete next[parentName.toLowerCase()];
-          this.collapsedBinderBranches = next;
-          this.saveCollapsedBinderBranches();
+          this.expandBinderAndAncestors(parentName);
         }
         this.binderError.nativeElement.hidden = true;
         el.value = '';
@@ -533,6 +544,7 @@ export class NavComponent implements OnInit, OnDestroy {
       this.Shared.closeSideBar.subscribe(x => { if (x) this.collapseSideBar() }),
       this.Shared.closeSideBarIfOpen.subscribe(x => { if (x) this.closeSideBarIfOpen() }),
       this.Shared.openBinderModalForParent.subscribe(parent => this.openBinderModal(parent)),
+      this.Shared.expandBinderBranch.subscribe(parent => this.expandBinderAndAncestors(parent)),
       this.Shared.openEditLabelsModal.subscribe(() => this.openModal())
     );
     const sidebar = document.querySelector('[sideBar]');

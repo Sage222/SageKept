@@ -53,9 +53,9 @@
             <label class="sage-ctx-field">
               <span>Parent binder (optional)</span>
               <select [value]="dialogParentBinder" (change)="dialogParentBinder = $any($event.target).value">
-                <option value="">None (top-level binder)</option>
+                <option value="" [selected]="!dialogParentBinder">None (top-level binder)</option>
                 @for (node of Shared.binder.treeList; track node.name) {
-                  <option [value]="node.name">{{formatIndentedBinder(node)}}</option>
+                  <option [value]="node.name" [selected]="!!dialogParentBinder && node.name.toLowerCase() === dialogParentBinder.toLowerCase()">{{formatIndentedBinder(node)}}</option>
                 }
               </select>
             </label>

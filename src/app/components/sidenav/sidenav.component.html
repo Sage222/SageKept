@@ -56,26 +56,35 @@
         <div routerLinkActive="active" [routerLinkActiveOptions]="{ paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' }" class="item is-binder"
           [class.is-nested-binder]="binder.depth > 0"
           [class.has-sub-binders]="binder.hasChildren"
+          [class.is-branch-expanded]="binder.hasChildren && isBinderBranchExpanded(binder.name)"
           [style.--binder-depth]="binder.depth"
+          [style.paddingLeft.px]="12 + binder.depth * 20"
           [attr.data-binder-drop]="binder.name"
           [attr.data-ctx-binder]="binder.name"
           [attr.data-ctx-sidebar-item]="'binder:' + binder.name.toLowerCase()"
           [attr.data-ctx-sidebar-label]="'Binder: ' + binder.name"
           (click)="onNavItemClick()"
-          [title]="binder.name"
+          [title]="binder.path.join(' / ')"
           [routerLink]="['/binder', binder.name]">
+          @if (binder.depth > 0) {
+            <span class="binder-tree-connector" aria-hidden="true"></span>
+          }
           @if (binder.hasChildren) {
             <button type="button" class="binder-tree-toggle"
               [attr.aria-expanded]="isBinderBranchExpanded(binder.name)"
               [attr.aria-label]="'Toggle sub-binders for ' + binder.name"
+              [title]="(isBinderBranchExpanded(binder.name) ? 'Collapse ' : 'Expand ') + binder.name + ' (' + binder.childCount + ')'"
               (click)="toggleBinderBranch(binder.name, $event)">
               <span class="material-symbols-outlined" [class.collapsed]="!isBinderBranchExpanded(binder.name)" aria-hidden="true">expand_more</span>
             </button>
           } @else {
             <span class="binder-tree-spacer" aria-hidden="true"></span>
           }
-          <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">{{ binder.memberCount ? 'folder_shared' : (binder.depth > 0 ? 'subdirectory_arrow_right' : 'folder') }}</span>
+          <span class="material-pic material-symbols-outlined binder-row-icon" aria-hidden="true">{{ binder.memberCount ? 'folder_shared' : (binder.hasChildren && isBinderBranchExpanded(binder.name) ? 'folder_open' : 'folder') }}</span>
           <span class="text">{{binder.name}}</span>
+          @if (binder.hasChildren) {
+            <span class="sub-binder-count" [title]="binder.childCount + (binder.childCount === 1 ? ' sub-binder' : ' sub-binders')">{{binder.childCount}}</span>
+          }
           <span class="label-abbr" aria-hidden="true">{{compactLabel(binder.name)}}</span>
           <button type="button" class="add-sub-binder-btn" title="Add sub-binder" [attr.aria-label]="'Add sub-binder inside ' + binder.name"
             (click)="openAddSubBinder(binder.name, $event)">
@@ -189,17 +198,17 @@
         <div class="input-container">
           <div #binderPlusIcon class="plus-icon H" (click)="binderInput.value=''"></div>
           <input #binderInput (blur)="binderPlusIcon.classList.toggle('cancel-icon')"
-            (focus)="binderPlusIcon.classList.toggle('cancel-icon')" (keydown.enter)="addBinder(binderInput)"
+            (focus)="binderPlusIcon.classList.toggle('cancel-icon')" (keydown.enter)="addBinder(binderInput, newBinderParentSelect)"
             type="text" [attr.placeholder]="'sidenav.create_new_binder' | translate" maxlength="50" (input)="''">
           <div [style.display]="binderInput.value.length ? 'block' : 'none'" class="check-icon H"
-            (click)="addBinder(binderInput)"></div>
+            (click)="addBinder(binderInput, newBinderParentSelect)"></div>
         </div>
         <div class="binder-parent-picker">
           <label for="new-binder-parent">Parent binder</label>
-          <select id="new-binder-parent" [value]="newBinderParent" (change)="newBinderParent = $any($event.target).value">
-            <option value="">None (top-level)</option>
+          <select #newBinderParentSelect id="new-binder-parent" [value]="newBinderParent" (change)="newBinderParent = $any($event.target).value">
+            <option value="" [selected]="!newBinderParent">None (top-level)</option>
             @for (opt of Shared.binder.treeList; track opt.name) {
-              <option [value]="opt.name">{{formatIndentedOption(opt)}}</option>
+              <option [value]="opt.name" [selected]="!!newBinderParent && opt.name.toLowerCase() === newBinderParent.toLowerCase()">{{formatIndentedOption(opt)}}</option>
             }
           </select>
         </div>
@@ -252,9 +261,9 @@
               <select class="binder-row-parent-select" [disabled]="binderBusy" [value]="binder.parentName || ''"
                 [attr.aria-label]="'Parent binder for ' + binder.name"
                 (change)="changeBinderParent(binder.name, $any($event.target).value)">
-                <option value="">Top-level</option>
+                <option value="" [selected]="!binder.parentName">Top-level</option>
                 @for (parentOpt of validParentsFor(binder.name); track parentOpt.name) {
-                  <option [value]="parentOpt.name">{{formatIndentedOption(parentOpt)}}</option>
+                  <option [value]="parentOpt.name" [selected]="!!binder.parentName && parentOpt.name.toLowerCase() === binder.parentName.toLowerCase()">{{formatIndentedOption(parentOpt)}}</option>
                 }
               </select>
             </div>
