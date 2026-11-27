@@ -14,11 +14,28 @@ if (environment.production) {
 platformBrowserDynamic().bootstrapModule(AppModule, { applicationProviders: [provideZoneChangeDetection()], })
   .catch(err => console.error(err));
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/kept-push-sw.js')
-      .then(registration => registration.update())
-      .catch(console.error);
+function canRegisterPushServiceWorker(): boolean {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
+  try {
+    if (window.self !== window.top) return false;
+  } catch {
+    return false;
+  }
+  const host = window.location?.hostname || '';
+  if (host.endsWith('.run.app')) return false;
+  return true;
+}
+
+if (canRegisterPushServiceWorker()) {
+  window.addEventListener('load', async () => {
+    try {
+      const check = await fetch('/kept-push-sw.js', { cache: 'no-store', redirect: 'manual', credentials: 'same-origin' });
+      if (!check.ok || check.redirected || check.type === 'opaqueredirect') return;
+      const registration = await navigator.serviceWorker.register('/kept-push-sw.js');
+      await registration.update();
+    } catch {
+      // Service workers are optional and may be disallowed behind reverse-proxy redirects.
+    }
   });
 }
 

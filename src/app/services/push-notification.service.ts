@@ -16,7 +16,7 @@ export class PushNotificationService {
   constructor(private http: HttpClient, private auth: AuthService) {
     this.auth.currentUser$.subscribe(user => {
       if (!this.auth.isLocal && user && this.isSupported() && Notification.permission === 'granted') {
-        this.ensureSubscribed().catch(console.error);
+        this.ensureSubscribed().catch(() => {});
       }
     });
   }
@@ -89,13 +89,13 @@ export class PushNotificationService {
       return 'denied';
     }
     if (Notification.permission === 'granted') {
-      this.ensureSubscribed().catch(console.error);
+      this.ensureSubscribed().catch(() => {});
       return 'granted';
     }
     if (Notification.permission === 'denied') return 'denied';
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      this.ensureSubscribed().catch(console.error);
+      this.ensureSubscribed().catch(() => {});
     }
     return permission;
   }
@@ -112,6 +112,9 @@ export class PushNotificationService {
 
     try {
       if (Notification.permission !== 'granted') return;
+
+      const check = await fetch('/kept-push-sw.js', { cache: 'no-store', redirect: 'manual', credentials: 'same-origin' });
+      if (!check.ok || check.redirected || check.type === 'opaqueredirect') return;
 
       // Wait for the SW to reach `activated` before subscribing — iOS
       // refuses pushManager.subscribe() against an installing/waiting worker.
@@ -205,10 +208,19 @@ export class PushNotificationService {
   }
 
   private isSupported() {
-    return typeof window !== 'undefined'
-      && 'serviceWorker' in navigator
-      && 'PushManager' in window
-      && 'Notification' in window;
+    if (typeof window === 'undefined'
+      || !('serviceWorker' in navigator)
+      || !('PushManager' in window)
+      || !('Notification' in window)) {
+      return false;
+    }
+    try {
+      if (window.self !== window.top) return false;
+    } catch {
+      return false;
+    }
+    if ((window.location?.hostname || '').endsWith('.run.app')) return false;
+    return true;
   }
 
   private urlBase64ToUint8Array(base64String: string) {
